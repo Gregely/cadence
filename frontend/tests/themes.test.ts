@@ -63,7 +63,7 @@ describe('theme tokens', () => {
   });
 });
 
-const NEW_THEMES = ['analogue'];
+const NEW_THEMES = ['analogue', 'analogue-dark'];
 
 describe.each(NEW_THEMES)('%s: readable (WCAG AA)', (theme) => {
   const t = themeTokens(theme);
@@ -72,7 +72,7 @@ describe.each(NEW_THEMES)('%s: readable (WCAG AA)', (theme) => {
 
   it('defines every colour token as a plain hex value', () => {
     for (const k of ['--bg', '--surface', '--raised', '--ink', '--muted', '--faint', '--dim', '--line', '--hover', '--current',
-      '--selection', '--bar-bg', '--bar-ink', '--accent', '--page', '--well', '--field', '--face', '--face-hover', '--face-pressed', '--focus']) {
+      '--selection', '--bar-bg', '--bar-ink', '--accent', '--edge', '--page', '--well', '--field', '--face', '--face-hover', '--face-pressed', '--focus']) {
       expect(t[k], k).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
@@ -106,5 +106,34 @@ describe.each(NEW_THEMES)('%s: readable (WCAG AA)', (theme) => {
 
   it('focus rings stand out from what they surround (3:1)', () => {
     for (const bg of ['--bg', '--page', '--raised', '--field', '--face']) expect(ratio('--focus', bg), bg).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('grain', () => {
+  const grainRules = allRules().filter((r) => r.decls.some(([, v]) => v.includes('var(--grain)')));
+
+  it('is only drawn when the setting is on, in the analogue themes', () => {
+    expect(grainRules.length).toBeGreaterThan(0);
+    for (const r of grainRules) for (const s of r.selectors) expect(s).toMatch(/^\[data-theme\^='analogue'\]\[data-grain='on'\] /);
+    expect(themeTokens('paper')['--grain']).toBeUndefined();
+  });
+
+  it('is only on the window frame, never under the writing', () => {
+    const writing = /\.(writing|page|prose|combined|reader|split|screen|modal|menu|tree|statusbar)/;
+    for (const r of grainRules) for (const s of r.selectors) expect(s).not.toMatch(writing);
+    // Everything that holds writing paints its own solid background over any frame.
+    const solid = new Set(allRules()
+      .filter((r) => r.file.endsWith('analogue.css') && r.decls.some(([k, v]) => k === 'background' && v === 'var(--page)'))
+      .flatMap((r) => r.selectors));
+    for (const el of ['.writing', '.split-body', '.reader', '.screen-holder']) expect(solid.has(`[data-theme^='analogue'] ${el}`), el).toBe(true);
+  });
+
+  it('is a small inline image, so nothing is fetched', () => {
+    for (const theme of ['analogue', 'analogue-dark']) {
+      const rule = allRules().find((r) => r.selectors.includes(`[data-theme='${theme}'][data-grain='on']`));
+      const value = rule?.decls.find(([k]) => k === '--grain')?.[1] ?? '';
+      expect(value.startsWith('url("data:image/svg+xml,')).toBe(true);
+      expect(value.length).toBeLessThan(1000);
+    }
   });
 });

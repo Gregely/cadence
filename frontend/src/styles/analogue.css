@@ -1,5 +1,6 @@
-/* Analogue: a calm, tactile theme. Putty window surfaces, a parchment page,
-   softly raised buttons and sunken fields, thin rules, no gloss.
+/* Analogue and Analogue Dark: a calm, tactile pair. Putty (or charcoal)
+   window surfaces, a parchment (or warm dark) page, softly raised buttons
+   and sunken fields, thin rules, no gloss.
 
    Every rule in this file is scoped to [data-theme^='analogue'], so the
    paper, dark and e-ink themes never see it. Colours live only in the token
@@ -18,7 +19,8 @@
   --ink: #26221c;
   --muted: #4f493f;
   --faint: #575045;
-  --line: #9a907e;
+  --line: #9a907e; /* rules on the page and in panels */
+  --edge: #9a907e; /* outlines of controls and the window frame */
   --hover: #ddd6c8;
   --current: #cbd5c2;
   --dim: #6d6556;
@@ -47,6 +49,55 @@
   color-scheme: light;
 }
 
+/* Analogue Dark: the same design in warm charcoal and umber. Light still
+   falls from the top left: bevel highlights are a lighter umber, shadows
+   near black. */
+[data-theme='analogue-dark'] {
+  --bg: #2f2a24;
+  --surface: #221f1b;
+  --raised: #36312a;
+  --ink: #ece4d5;
+  --muted: #c8beac;
+  --faint: #bab09d;
+  --line: #4b443a;
+  --edge: #12100e;
+  --hover: #3a352e;
+  --current: #343e2d;
+  --dim: #968c7b;
+  --selection: #384430;
+  --bar-bg: #d9d1c1;
+  --bar-ink: #26221c;
+  --accent: #a4bba6;
+  --border-w: 1px;
+  --focus-ring: 2px solid var(--focus);
+  --shadow: 2px 3px 0 rgba(0, 0, 0, 0.38);
+  --scrim: rgba(0, 0, 0, 0.45);
+  --backdrop: rgba(0, 0, 0, 0.4);
+  --backdrop-light: rgba(0, 0, 0, 0.2);
+  --page: #24211c;
+  --well: #221f1b;
+  --field: #1c1a16;
+  --face: #3b362e;
+  --face-hover: #433d35;
+  --face-pressed: #2a2621;
+  --bevel-hi: #574f44;
+  --bevel-lo: #12100e;
+  --bevel-soft: #171512;
+  --line-strong: #6a6155;
+  --focus: #b2c9b3;
+  color-scheme: dark;
+}
+
+/* Grain: a faint speckle on the window frame only (never under the page),
+   drawn once from a tiny SVG. Settings -> Grain texture turns it off. */
+[data-theme='analogue'][data-grain='on'] {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .23 0 0 0 0 .19 0 0 0 0 .13 0 0 0 .13 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+[data-theme='analogue-dark'][data-grain='on'] {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .94 0 0 0 0 .84 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
 /* Each kind keeps its own accent, tuned to the palette: a stripe along the
    top of the window, link underlines, footnote numbers, focus marks. */
 [data-theme='analogue'] .layout[data-kind='essay'] {
@@ -69,11 +120,31 @@
   --accent: #3c5a70;
 }
 
+[data-theme='analogue-dark'] .layout[data-kind='essay'] {
+  --accent: #d4a87e;
+}
+
+[data-theme='analogue-dark'] .layout[data-kind='note'] {
+  --accent: #95c2ae;
+}
+
+[data-theme='analogue-dark'] .layout[data-kind='poetry'] {
+  --accent: #bbafdd;
+}
+
+[data-theme='analogue-dark'] .layout[data-kind='diary'] {
+  --accent: #dbabb9;
+}
+
+[data-theme='analogue-dark'] .layout[data-kind='fiction'] {
+  --accent: #9ebcd6;
+}
+
 /* ------------------------------------------------------------ controls */
 
 :where([data-theme^='analogue']) button {
   background: var(--face);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: 3px;
   box-shadow: inset 1px 1px 0 var(--bevel-hi), inset -1px -1px 0 var(--bevel-soft);
 }
@@ -116,7 +187,7 @@
 
 [data-theme^='analogue'] .topbar button.on {
   color: var(--ink);
-  border-color: var(--line);
+  border-color: var(--edge);
   text-decoration: none;
 }
 
@@ -130,7 +201,7 @@
 :where([data-theme^='analogue']) textarea,
 :where([data-theme^='analogue']) select {
   background: var(--field);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   box-shadow: inset 1px 1px 0 var(--bevel-soft);
 }
@@ -138,6 +209,7 @@
 [data-theme^='analogue'] .research input[type='search'],
 [data-theme^='analogue'] .side-list input[type='search'] {
   background: var(--field);
+  border-color: var(--edge);
   border-radius: 2px;
 }
 
@@ -163,7 +235,7 @@
 
 [data-theme^='analogue'] .topbar {
   background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--edge);
 }
 
 [data-theme^='analogue'] .writing,
@@ -174,7 +246,7 @@
 /* A sunken strip for the status line. */
 [data-theme^='analogue'] .statusbar {
   background: var(--well);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--edge);
   box-shadow: inset 0 1px 0 var(--bevel-soft);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
@@ -184,18 +256,24 @@
   color: var(--muted);
 }
 
+[data-theme^='analogue'][data-grain='on'] .topbar,
+[data-theme^='analogue'][data-grain='on'] .sidebar,
+[data-theme^='analogue'][data-grain='on'] .side-pane {
+  background-image: var(--grain);
+}
+
 /* ------------------------------------------------------------ library */
 
 [data-theme^='analogue'] .sidebar {
   background: var(--bg);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--edge);
 }
 
 /* The tree sits in a sunken well, like a file list. */
 [data-theme^='analogue'] .tree {
   margin: 0 0.5rem;
   background: var(--well);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   box-shadow: inset 1px 1px 0 var(--bevel-soft);
   padding-top: 0.35rem;
@@ -228,12 +306,12 @@
 
 [data-theme^='analogue'] .side-pane {
   background: var(--bg);
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--edge);
 }
 
 [data-theme^='analogue'] .split-body {
   background: var(--page);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   box-shadow: inset 1px 1px 0 var(--bevel-soft);
   padding-left: 0.75rem;
   padding-right: 0.75rem;

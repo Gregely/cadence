@@ -1019,7 +1019,7 @@ export class App implements SidebarHost, ScreenHost {
   // ------------------------------------------------------------ layout and settings
 
   private applySettings(s: Settings): void {
-    applyTheme(s.theme);
+    applyTheme(s.theme, s.grain);
     const mobile = window.matchMedia(MOBILE).matches;
     const open = mobile ? this.el.classList.contains('sidebar-open') && this.sidebarTouched : (s.sidebar ?? true);
     this.el.classList.toggle('sidebar-open', open);
@@ -1298,6 +1298,8 @@ export class App implements SidebarHost, ScreenHost {
       { label: 'Dark', checked: s.theme === 'dark', run: () => updateSettings({ theme: 'dark' }) },
       { label: 'E-ink (high contrast)', checked: s.theme === 'eink', run: () => updateSettings({ theme: 'eink' }) },
       { label: 'Analogue', checked: s.theme === 'analogue', run: () => updateSettings({ theme: 'analogue' }) },
+      { label: 'Analogue Dark', checked: s.theme === 'analogue-dark', run: () => updateSettings({ theme: 'analogue-dark' }) },
+      s.theme.startsWith('analogue') ? { label: 'Grain texture', checked: s.grain, run: () => updateSettings({ grain: !s.grain }) } : null,
       { label: '', run: () => undefined, separator: true },
       { label: 'Typewriter scrolling', checked: s.typewriter, run: () => updateSettings({ typewriter: !s.typewriter }) },
       { label: 'Word count', checked: s.wordCount, run: () => updateSettings({ wordCount: !s.wordCount }) },

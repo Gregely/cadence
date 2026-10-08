@@ -15,6 +15,8 @@ export interface Settings {
   timerMinutes: number;
   sidebar: boolean | null; // null = default for screen size
   autolockMinutes: number;
+  /** A faint grain on the window frame (Analogue themes only). */
+  grain: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -26,6 +28,7 @@ const DEFAULTS: Settings = {
   timerMinutes: 25,
   sidebar: null,
   autolockMinutes: 5,
+  grain: true,
 };
 
 const KEY = 'cadence.settings';
@@ -51,8 +54,9 @@ export function onSettings(fn: (s: Settings) => void): void {
   listeners.add(fn);
 }
 
-export function applyTheme(theme: Theme): void {
+export function applyTheme(theme: Theme, grain = current.grain): void {
   document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.grain = grain ? 'on' : 'off';
   // The browser bar takes the theme's background, read from its tokens.
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);

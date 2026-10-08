@@ -34,4 +34,16 @@ describe('theme setting', () => {
     s.applyTheme('analogue');
     expect(document.documentElement.dataset.theme).toBe('analogue');
   });
+
+  it('has grain on by default and remembers turning it off', async () => {
+    const s = await freshSettings();
+    expect(s.settings().grain).toBe(true);
+    s.applyTheme('analogue');
+    expect(document.documentElement.dataset.grain).toBe('on');
+    s.updateSettings({ grain: false });
+    const again = await freshSettings();
+    expect(again.settings().grain).toBe(false);
+    again.applyTheme('analogue-dark', again.settings().grain);
+    expect(document.documentElement.dataset.grain).toBe('off');
+  });
 });

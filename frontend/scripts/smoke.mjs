@@ -1110,8 +1110,8 @@ function smallTargets() {
   return out;
 }
 
-for (const [theme, label] of [['analogue', 'Analogue']]) {
-  step(`${theme} theme: switcher, remembered, readable, draft mode, phone`, async () => {
+for (const [theme, label] of [['analogue', 'Analogue'], ['analogue-dark', 'Analogue Dark']]) {
+  step(`${theme} theme: switcher, remembered, grain, readable, draft mode, phone`, async () => {
     const essays = await api('/api/kinds/essay/tree');
     const essay = essays.documents.find((d) => d.title === 'On walking');
     const fen = (await api('/api/kinds/fiction/tree')).folders.find((f) => f.name === 'Chapter One' && f.parent_id !== null);
@@ -1122,11 +1122,24 @@ for (const [theme, label] of [['analogue', 'Analogue']]) {
     await page.waitForSelector('.ProseMirror');
     check(await page.evaluate(() => document.documentElement.dataset.theme) === 'paper', 'paper is still the default theme');
     await page.click('.sidebar-foot button:has-text("Settings")');
-    await page.click(`.menu button:has-text("${label}")`);
+    check(!(await page.locator('.menu button:has-text("Grain texture")').count()), 'no grain setting outside the analogue themes');
+    await page.click(`.menu button:has(.menu-label:text-is("${label}"))`);
     check(await page.evaluate(() => document.documentElement.dataset.theme) === theme, `${theme}: chosen from the settings menu`);
     await page.reload();
     await page.waitForSelector('.ProseMirror');
     check(await page.evaluate(() => document.documentElement.dataset.theme) === theme, `${theme}: remembered after a reload`);
+    // Grain: on by default, on the window frame only, and it can be turned off.
+    const bgImage = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).backgroundImage, sel);
+    check((await bgImage('.topbar')).includes('data:image/svg+xml'), `${theme}: grain on the toolbar by default`);
+    check(await bgImage('.writing') === 'none' && await bgImage('.prose') === 'none', `${theme}: no grain under the writing`);
+    await page.click('.sidebar-foot button:has-text("Settings")');
+    await page.click('.menu button:has-text("Grain texture")');
+    check(await bgImage('.topbar') === 'none', `${theme}: grain can be turned off`);
+    await page.reload();
+    await page.waitForSelector('.ProseMirror');
+    check(await bgImage('.topbar') === 'none', `${theme}: grain stays off after a reload`);
+    await page.click('.sidebar-foot button:has-text("Settings")');
+    await page.click('.menu button:has-text("Grain texture")');
     const scan = async (where) => { for (const p of await page.evaluate(lowContrast)) failures.push(`${theme} ${where}: low contrast ${p}`); };
     await scan('essay');
     await page.click('.sidebar-foot button:has-text("Settings")');
@@ -1187,6 +1200,30 @@ step('boox-test: 5,000 words, load and keystroke latency', async () => {
       `keystroke avg ${Math.round(stats.avg)} ms, p95 ${Math.round(stats.p95)} ms over ${stats.samples.length} keys`);
     if (rate === 6) await page.screenshot({ path: join(out, 'boox-test.png') });
   }
+  await ctx.close();
+});
+
+step('analogue themes: editor speed matches paper on 5,000 words', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  guard(page, 'theme-speed');
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+  const avg = {};
+  for (const theme of ['paper', 'analogue', 'analogue-dark']) {
+    const runs = [];
+    for (let round = 0; round < 2; round++) {
+      await page.goto(`${base}/boox-test?theme=${theme}`);
+      await page.waitForFunction(() => window.booxStats);
+      await page.keyboard.press('Control+End');
+      for (let i = 0; i < 30; i++) await page.keyboard.type('a', { delay: 30 });
+      await page.waitForTimeout(400);
+      runs.push((await page.evaluate(() => window.booxStats)).avg);
+    }
+    avg[theme] = Math.min(...runs);
+  }
+  notes.push(`keystroke avg at 6x CPU slowdown: ${Object.entries(avg).map(([t, v]) => `${t} ${Math.round(v)} ms`).join(', ')}`);
+  for (const t of ['analogue', 'analogue-dark']) check(avg[t] <= avg.paper * 1.5 + 8, `${t}: typing is no slower than paper (${Math.round(avg[t])} vs ${Math.round(avg.paper)} ms)`);
   await ctx.close();
 });
 
