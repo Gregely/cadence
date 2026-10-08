@@ -1362,3 +1362,62 @@ button.crumb {
     overflow: visible;
   }
 }
+
+/* ------------------------------------------------------------ snapshots */
+
+.snap-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: var(--border-w) solid var(--line);
+}
+
+.snap-info {
+  flex: 1;
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.snap-label {
+  font-weight: 600;
+}
+
+.snapshots > .row-actions {
+  margin-bottom: 0.5rem;
+}
+
+.snap-detail-head {
+  margin: 1rem 0 0.5rem;
+}
+
+.diff {
+  white-space: pre-wrap;
+  font-family: var(--k-font-body, Georgia, serif);
+  line-height: 1.6;
+  padding: 0.75rem;
+  border: var(--border-w) solid var(--line);
+  border-radius: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+  tab-size: 4;
+}
+
+/* Changes are marked by shape, not colour: struck through and underlined. */
+.diff del {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: var(--muted);
+}
+
+.diff ins {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  font-weight: 600;
+}
+
+.export-choices .row-actions {
+  margin-top: 0.5rem;
+}

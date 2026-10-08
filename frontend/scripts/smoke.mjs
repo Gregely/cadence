@@ -221,6 +221,97 @@ step('poetry: lines, stanzas and indentation survive', async () => {
   await ctx.close();
 });
 
+
+step('poetry: snapshot, compare and restore', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  guard(page, 'snapshots');
+  await page.goto(base + '/');
+  await page.waitForSelector('.ProseMirror');
+  check(await page.evaluate(() => document.querySelector('.layout').dataset.kind) === 'poetry', 'reopens in poetry');
+  check(await page.locator('.topbar button:has-text("Snapshot")').isVisible(), 'snapshot button is prominent for poetry');
+  await page.click('.topbar button:has-text("Snapshot")');
+  await page.waitForSelector('.toast:has-text("Snapshot taken")');
+  await page.click('.ProseMirror');
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' changed');
+  await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved');
+  await page.click('.topbar button:has-text("Versions")');
+  await page.waitForSelector('.snap-row');
+  await page.click('.snap-row button:has-text("Compare")');
+  await page.waitForSelector('.diff ins');
+  check((await page.locator('.diff ins').innerText()).includes('changed'), 'compare marks the added words');
+  await page.screenshot({ path: join(out, 'snapshots.png') });
+  await page.click('.snap-row button:has-text("Restore")');
+  await page.click('.dialog-actions button:has-text("Restore")');
+  await page.waitForSelector('.toast:has-text("Restored")');
+  const text = await page.locator('.ProseMirror').innerText();
+  check(!text.includes('changed'), 'restore brings back the snapshot text');
+  const tree = await api('/api/kinds/poetry/tree');
+  const snaps = await api(`/api/documents/${tree.documents[0].id}/snapshots`);
+  check(snaps.some((x) => x.label.startsWith('Before restoring')), 'the replaced text was kept as a snapshot');
+
+  // Export from the document menu.
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Export")');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.modal button:has-text("Word (.docx)")')]);
+  check(dl.suggestedFilename() === 'Heron.docx', `docx download named after the poem (got ${dl.suggestedFilename()})`);
+  await ctx.close();
+});
+
+step('fiction: project with ordered scenes, re-entry note, folder export', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  guard(page, 'fiction');
+  await page.goto(base + '/');
+  await page.waitForSelector('.ProseMirror');
+  await page.keyboard.press('Alt+5');
+  await page.waitForFunction(() => document.querySelector('.layout')?.dataset.kind === 'fiction');
+  await page.click('button[aria-label="New folder"]');
+  await page.fill('.modal input', 'The Novel');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.row.folder');
+  for (const [title, body] of [['Arrival', 'She came by the late train.'], ['Departure', 'He left before dawn.']]) {
+    await page.hover('.row.folder');
+    await page.click('.row.folder .more');
+    await page.click('.menu button:has-text("New scene here")');
+    await page.waitForTimeout(300);
+    await page.keyboard.type(title);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type(body);
+    await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved');
+  }
+  const nums = await page.locator('.row.doc .num').allInnerTexts();
+  check(nums.join(' ') === '1. 2.', `scenes are numbered in order (got ${nums})`);
+  // Drag the second scene above the first.
+  await page.locator('.row.doc', { hasText: 'Departure' }).dragTo(page.locator('.row.doc', { hasText: 'Arrival' }), { targetPosition: { x: 40, y: 3 } });
+  await page.waitForTimeout(500);
+  const labels = await page.locator('.row.doc .label').allInnerTexts();
+  check(labels.join(',') === 'Departure,Arrival', `drag and drop reorders scenes (got ${labels})`);
+  await page.screenshot({ path: join(out, 'fiction.png') });
+  // End the session deliberately and leave a re-entry note.
+  await page.click('.ProseMirror');
+  await page.keyboard.press('Control+.');
+  await page.waitForSelector('.prompt-form input');
+  await page.keyboard.type('Next: the letter arrives');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.waitForSelector('.reentry.prominent');
+  check((await page.locator('.reentry').innerText()).includes('Next: the letter arrives'), 're-entry note shown prominently on return');
+  await page.screenshot({ path: join(out, 'fiction-reentry.png') });
+  // Export the project as one document.
+  await page.hover('.row.folder');
+  await page.click('.row.folder .more');
+  await page.click('.menu button:has-text("Export as one document")');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.modal button:has-text("Markdown")')]);
+  const path = await dl.path();
+  const { readFileSync } = await import('node:fs');
+  const md = readFileSync(path, 'utf8');
+  check(md.indexOf('Departure') < md.indexOf('Arrival') && md.startsWith('# The Novel'), 'folder export follows the library order');
+  await ctx.close();
+});
+
 for (const theme of ['eink', 'paper', 'dark']) {
   step(`phone 390x844, ${theme} theme`, async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });

@@ -13,6 +13,7 @@ import { Saver, type SaveState } from './saver';
 import { Sessions } from './session';
 import { type Settings, applyTheme, onSettings, settings, updateSettings } from './settings';
 import type { DocFull, DocSummary, KindDef, Tree } from './types';
+import { chooseFormat } from './features/exporting';
 import { openCapture } from './ui/capture';
 import { ask, confirmAction, dialogOpen, inform, menu, type MenuItem, panel, toast } from './ui/dialogs';
 import { quickOpen } from './ui/quickopen';
@@ -378,6 +379,19 @@ export class App implements SidebarHost, ScreenHost {
     if (opts.focus !== false) this.editor?.focus();
     for (const f of this.features) f.onDocument?.(this);
     return true;
+  }
+
+  /** Reload the open document from the server (after a restore, say). */
+  async reloadDocument(): Promise<void> {
+    if (!this.doc) return;
+    const fresh = await api.getDocument(this.doc.id);
+    const json = await this.codec().decode(fresh.content_json);
+    this.doc = { ...this.doc, ...fresh };
+    this.createEditor(json, this.editor?.cursor() ?? null);
+    this.saver.bind(fresh.id, fresh.updated_at);
+    this.fillChrome();
+    await this.refreshTree();
+    this.sidebar.setCurrent(fresh.id);
   }
 
   private storedCursor(doc: DocFull): number | null {
@@ -908,6 +922,14 @@ export class App implements SidebarHost, ScreenHost {
     await this.refreshTree();
     if (this.doc && m.type === 'doc' && m.id === this.doc.id) this.doc.folder_id = m.parent;
     this.fillCrumbs();
+  }
+
+  exportFolder(node: FolderNode): void {
+    chooseFormat(`Export “${node.folder.name}” as one document`, `/api/folders/${node.id}/export`);
+  }
+
+  exportDocument(doc: DocSummary): void {
+    void this.saver.flush().then(() => chooseFormat('Export', `/api/documents/${doc.id}/export`));
   }
 
   moveToDialog(node: Node): void {

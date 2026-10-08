@@ -41,3 +41,27 @@ export function fuzzyScore(query: string, target: string): number | null {
   }
   return score;
 }
+
+interface JsonNode {
+  type?: string;
+  text?: string;
+  attrs?: Record<string, unknown>;
+  content?: JsonNode[];
+}
+
+const BLOCKS = new Set(['paragraph', 'heading', 'blockquote', 'listItem']);
+
+/** Plain text of a ProseMirror JSON document, keeping line and stanza breaks. */
+export function docText(doc: JsonNode | null | undefined): string {
+  const out: string[] = [];
+  const walk = (n: JsonNode) => {
+    if (n.type === 'text') out.push(n.text ?? '');
+    else if (n.type === 'hardBreak') out.push('\n');
+    else if (n.type === 'sectionBreak') out.push('* * *\n\n');
+    else if (n.type === 'footnote') out.push(` [${String(n.attrs?.text ?? '')}]`);
+    for (const c of n.content ?? []) walk(c);
+    if (n.type && BLOCKS.has(n.type)) out.push('\n\n');
+  };
+  if (doc) walk(doc);
+  return out.join('').replace(/\n{3,}/g, '\n\n').trim();
+}

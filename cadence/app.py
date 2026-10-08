@@ -13,8 +13,9 @@ from urllib.parse import urlsplit
 from fastapi import Body, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.background import BackgroundTask
 
-from . import library, notebook, search
+from . import export, fullbackup, library, notebook, search
 from .db import connect, default_db_path, open_db
 from .errors import CadenceError, Invalid
 from .kinds import all_kinds
@@ -350,6 +351,33 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
         conn: sqlite3.Connection = Db,
     ):
         return search.search(conn, q, kind_id=kind, all_kinds=all_kinds, limit=limit)
+
+    # ------------------------------------------------------------ export
+
+    def download(exp: export.Export, fmt: str) -> Response:
+        body, media, filename = export.render(exp, fmt)
+        return Response(body, media_type=media, headers={"Content-Disposition": export.content_disposition(filename)})
+
+    @app.get("/api/documents/{doc_id}/export")
+    def export_document(doc_id: int, format: str = "md", conn: sqlite3.Connection = Db):
+        return download(export.document_export(conn, doc_id), format)
+
+    @app.get("/api/folders/{folder_id}/export")
+    def export_folder(folder_id: int, format: str = "md", conn: sqlite3.Connection = Db):
+        return download(export.folder_export(conn, folder_id), format)
+
+    @app.get("/api/export/full")
+    def export_full(conn: sqlite3.Connection = Db):
+        path = fullbackup.build(db_path, conn)
+        from . import clock as _clock
+
+        name = f"cadence-backup-{_clock.iso()[:10]}.zip"
+        return FileResponse(
+            path,
+            media_type="application/zip",
+            headers={"Content-Disposition": export.content_disposition(name)},
+            background=BackgroundTask(lambda: path.unlink(missing_ok=True)),
+        )
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE"])
     def api_not_found(rest: str):

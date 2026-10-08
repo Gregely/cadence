@@ -18,3 +18,13 @@ describe('text helpers', () => {
     expect(fuzzyScore('walk', 'Walking')!).toBeGreaterThan(fuzzyScore('walk', 'We all like kites')!);
   });
 });
+
+describe('docText', async () => {
+  const { docText } = await import('../src/lib/text');
+  it('keeps lines and stanzas', () => {
+    expect(docText({ type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'a' }, { type: 'hardBreak' }, { type: 'text', text: '\tb' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'c' }] },
+    ] })).toBe('a\n\tb\n\nc');
+  });
+});

@@ -13,7 +13,7 @@ async function start(): Promise<void> {
     return;
   }
   const app = new App(root);
-  const features = await import('./features');
+  const features = await import('./features/index');
   features.install(app);
   await app.boot();
   (window as unknown as { cadence?: App }).cadence = app;
