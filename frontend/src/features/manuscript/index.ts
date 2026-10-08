@@ -1,6 +1,8 @@
 import type { Feature } from '../../app';
 import { h } from '../../lib/dom';
 import { settings, updateSettings } from '../../settings';
+import { openCompile } from './compile';
+import { openDraftSets } from './draftsets';
 import { closeInspectorFor, inspectorOpen, renderInspector, toggleInspector } from './inspector';
 
 /** Manuscript tools, each gated by its flag in the kinds registry. */
@@ -24,6 +26,22 @@ export const manuscriptFeature: Feature = {
       }, 'Details'));
     }
     return out;
+  },
+  documentMenu(app) {
+    const k = app.kind;
+    if (!k.tools.compile && !k.tools.draft_sets) return [];
+    return [
+      { label: '', run: () => undefined, separator: true },
+      k.tools.compile ? { label: 'Compile…', run: () => openCompile(app) } : null,
+      k.tools.draft_sets ? { label: 'Draft sets…', run: () => openDraftSets(app) } : null,
+    ];
+  },
+  folderMenu(app, node) {
+    const k = app.kind;
+    return [
+      k.tools.compile ? { label: 'Compile…', run: () => openCompile(app, node) } : null,
+      k.tools.draft_sets ? { label: 'Draft sets…', run: () => openDraftSets(app, node) } : null,
+    ];
   },
   onDocument(app) {
     if (app.kind.tools.inspector) void renderInspector(app);

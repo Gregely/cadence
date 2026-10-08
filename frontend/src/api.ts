@@ -1,6 +1,6 @@
 import type { VaultParams } from './crypto/vault';
 import type {
-  Clip, DocFull, DocSummary, Folder, InboxItem, KindDef, SearchHit, Session, Snapshot, Source, Tree,
+  Clip, DocFull, DocSummary, DraftSet, Folder, InboxItem, KindDef, SearchHit, Session, Snapshot, Source, TodoItem, Tree,
 } from './types';
 
 export class ApiError extends Error {
@@ -124,6 +124,19 @@ export const api = {
   researchPreview: (id: number) => get<{ id: number; kind: string; title: string; content_json: string; folder_path: string[] }>(`/api/research/preview/${id}`),
   readingNotes: (sourceId: number, kind: string, folder_id: number | null) =>
     post<DocFull>(`/api/sources/${sourceId}/reading-notes`, { kind, folder_id }),
+
+  compileCheck: (folderId: number) =>
+    get<{ folder: { id: number; name: string }; scenes: number; words: number; todos: number }>(`/api/folders/${folderId}/compile-check`),
+  todos: (folderId: number) => get<{ folder: { id: number; name: string }; todos: TodoItem[] }>(`/api/folders/${folderId}/todos`),
+  project: (folderId: number) => get<{ id: number; name: string }>(`/api/folders/${folderId}/project`),
+  draftSets: (folderId: number) => get<{ project: { id: number; name: string }; sets: DraftSet[] }>(`/api/folders/${folderId}/draft-sets`),
+  takeDraftSet: (folderId: number, name: string) => post<DraftSet>(`/api/folders/${folderId}/draft-sets`, { name }),
+  draftSet: (id: number) => get<DraftSet & { items: { document_id: number; title: string; role: string | null; folder_id: number | null; words: number }[] }>(`/api/draft-sets/${id}`),
+  draftSetItem: (id: number, docId: number) => get<{ title: string; content_json: string }>(`/api/draft-sets/${id}/documents/${docId}`),
+  renameDraftSet: (id: number, name: string) => patch<DraftSet>(`/api/draft-sets/${id}`, { name }),
+  deleteDraftSet: (id: number) => del<void>(`/api/draft-sets/${id}`),
+  restoreDraftSet: (id: number, documentId?: number) =>
+    post<{ safety_set: DraftSet; restored: number[]; recreated: number[]; unchanged: number[] }>(`/api/draft-sets/${id}/restore`, documentId ? { document_id: documentId } : {}),
 
   search: (query: string, kind: string | null, allKinds = false, limit = 30) =>
     get<SearchHit[]>(`/api/search${q({ q: query, kind: allKinds ? undefined : kind, all_kinds: allKinds || undefined, limit })}`),

@@ -32,7 +32,7 @@ passphrase to read them, in Cadence or with the diary's decrypted export.
 """
 
 TABLES = ["folders", "documents", "snapshots", "inbox", "sessions"]
-OPTIONAL_TABLES = ["vaults", "sources", "clips", "clip_documents"]
+OPTIONAL_TABLES = ["vaults", "sources", "clips", "clip_documents", "draft_sets", "draft_set_items"]
 
 
 def _rows(conn: sqlite3.Connection, table: str) -> list[dict]:

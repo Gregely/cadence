@@ -307,15 +307,17 @@ step('fiction: project with ordered scenes, re-entry note, folder export', async
   await page.waitForSelector('.reentry.prominent');
   check((await page.locator('.reentry').innerText()).includes('Next: the letter arrives'), 're-entry note shown prominently on return');
   await page.screenshot({ path: join(out, 'fiction-reentry.png') });
-  // Export the project as one document.
+  // Compile the project (fiction compiles instead of "export as one document").
   await page.hover('.row.folder');
   await page.click('.row.folder .more');
-  await page.click('.menu button:has-text("Export as one document")');
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.modal button:has-text("Markdown")')]);
+  check(!(await page.locator('.menu button:has-text("Export as one document")').count()), 'fiction folders compile instead of exporting');
+  await page.click('.menu button:has-text("Compile")');
+  await page.check('.compile-form input[value="md"]');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.compile-form button[type=submit]')]);
   const path = await dl.path();
   const { readFileSync } = await import('node:fs');
   const md = readFileSync(path, 'utf8');
-  check(md.indexOf('Departure') < md.indexOf('Arrival') && md.startsWith('# The Novel'), 'folder export follows the library order');
+  check(md.indexOf('He left before dawn.') < md.indexOf('She came by the late train.') && md.startsWith('# The Novel'), 'compile follows the library order');
   await ctx.close();
 });
 
@@ -544,6 +546,83 @@ step('fiction: scenes, misc notes, stubs, counts, inspector, next scene', async 
   const box = await p2.locator('.side-pane').boundingBox();
   check(box && box.width >= 380, 'details fill the phone screen');
   await p2.screenshot({ path: join(out, 'phone-eink-details.png') });
+  await phone.close();
+});
+
+step('fiction: compile with TODO warning, draft sets compare and restore', async () => {
+  const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+  const para = (...t) => JSON.stringify({ type: 'doc', content: t.map((x) => ({ type: 'paragraph', content: [{ type: 'text', text: x }] })) });
+  const project = await post('/api/folders', { kind: 'fiction', name: 'Saltmarsh' });
+  const ch = await post('/api/folders', { kind: 'fiction', name: 'Chapter One', parent_id: project.id });
+  const a = await post('/api/documents', { kind: 'fiction', title: 'Tide', folder_id: ch.id, content_json: para('The tide came in.', 'Gulls on the wire.') });
+  await post('/api/documents', { kind: 'fiction', title: 'Dusk', folder_id: ch.id, content_json: para('Dusk [[fix: which month?]] fell early.') });
+  await post('/api/documents', { kind: 'fiction', title: 'Places', role: 'misc', folder_id: ch.id, content_json: para('MISC-PLACES the marsh, the church') });
+
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  guard(page, 'compile');
+  await page.goto(`${base}/f/${ch.id}`);
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  await page.locator(`.row.folder[data-folder="${project.id}"]`).hover();
+  await page.click(`.row.folder[data-folder="${project.id}"] .more`);
+  await page.click('.menu button:has-text("Compile")');
+  await page.waitForSelector('.compile-warning:not([hidden])');
+  check((await page.locator('.compile-warning').innerText()).includes('1 TODO marker is still in the text'), 'compile warns about TODO markers');
+  check(await page.locator('.compile-form button[type=submit]').isEnabled(), 'the warning does not block compiling');
+  await page.fill('.compile-form input[autocomplete="name"]', 'Ana Sousa');
+  await page.screenshot({ path: join(out, 'fiction-compile.png') });
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.compile-form button[type=submit]')]);
+  check(dl.suggestedFilename() === 'Saltmarsh (manuscript).docx', `manuscript download (${dl.suggestedFilename()})`);
+  const md = await (await fetch(`${base}/api/folders/${project.id}/compile?format=md`)).text();
+  check(!md.includes('MISC-PLACES') && !md.includes('[[') && md.includes('Dusk fell early.'), 'compiled text has no misc notes and no markers');
+
+  // Draft sets.
+  await page.locator(`.combined-doc[data-doc="${a.id}"] .ProseMirror`).click();
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Draft sets")');
+  await page.fill('.take-set input', 'Draft 1');
+  await page.click('.take-set button');
+  await page.waitForSelector('.set-row');
+  await page.keyboard.press('Escape');
+  await page.locator(`.combined-doc[data-doc="${a.id}"] .ProseMirror`).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('A new paragraph after the draft.');
+  for (let i = 0; i < 40 && !(await api(`/api/documents/${a.id}`)).plain_text.includes('after the draft'); i++) await page.waitForTimeout(100);
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Draft sets")');
+  await page.waitForSelector('.set-row');
+  await page.click('.set-row button:has-text("Compare this scene")');
+  await page.waitForSelector('.para-diff');
+  check((await page.locator('.para-diff ins').innerText()).includes('A new paragraph after the draft.'), 'paragraph diff shows the added paragraph');
+  check(await page.locator('.para-diff p.same').count() === 2, 'unchanged paragraphs shown plainly');
+  await page.screenshot({ path: join(out, 'fiction-draft-sets.png') });
+  await page.click('.set-row button:has-text("Restore this scene")');
+  await page.click('.dialog-actions button:has-text("Restore")');
+  await page.waitForSelector('.toast:has-text("Restored")');
+  check(!(await api(`/api/documents/${a.id}`)).plain_text.includes('after the draft'), 'restoring a scene brings back its text');
+  const sets = await api(`/api/folders/${project.id}/draft-sets`);
+  check(sets.sets.length === 2 && sets.sets[0].automatic && sets.sets[0].name.startsWith('Before restoring'), 'a safety set was taken first');
+  check(!(await page.locator(`.combined-doc[data-doc="${a.id}"] .ProseMirror`).innerText()).includes('after the draft'), 'the open view shows the restored text');
+  // Restore the whole project back from the safety set.
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Draft sets")');
+  await page.locator('.set-row.auto button:has-text("Restore whole project")').click();
+  await page.click('.dialog-actions button:has-text("Restore")');
+  await page.waitForSelector('.toast:has-text("Restored")');
+  check((await api(`/api/documents/${a.id}`)).plain_text.includes('after the draft'), 'restoring the whole project from the safety set undoes the restore');
+  await ctx.close();
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await phone.newPage();
+  guard(p2, 'draft-sets-phone');
+  await p2.goto(`${base}/f/${ch.id}?theme=eink`);
+  await p2.waitForSelector('.combined-doc .ProseMirror');
+  await p2.locator('.combined-doc .ProseMirror').first().tap();
+  await p2.tap('button[aria-label="Document menu"]');
+  await p2.tap('.menu button:has-text("Draft sets")');
+  await p2.waitForSelector('.set-row');
+  await p2.screenshot({ path: join(out, 'phone-eink-draft-sets.png') });
   await phone.close();
 });
 

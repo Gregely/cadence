@@ -176,3 +176,22 @@ export interface Clip {
   document_ids: number[];
   source?: Source;
 }
+
+export interface DraftSet {
+  id: number;
+  folder_id: number;
+  name: string;
+  automatic: boolean;
+  created_at: string;
+  documents: number;
+  words: number;
+}
+
+export interface TodoItem {
+  document_id: number;
+  title: string;
+  role: string | null;
+  path: string[];
+  text: string;
+  index: number;
+}

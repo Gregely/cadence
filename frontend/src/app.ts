@@ -606,6 +606,12 @@ export class App implements SidebarHost, ScreenHost {
     for (const p of this.panes) if (p.id === docId) p.rebase(updatedAt);
   }
 
+  /** Save every open editor (before compiling or taking a draft set). */
+  async flushAll(): Promise<void> {
+    await this.saver.flush();
+    await Promise.all([...this.panes].map((p) => p.flush()));
+  }
+
   /** Save every editor showing this document. */
   async flushDoc(docId: number): Promise<void> {
     if (this.doc?.id === docId) await this.saver.flush();

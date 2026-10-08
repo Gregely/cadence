@@ -74,6 +74,8 @@ class Export:
     items: list[Part | Section] = field(default_factory=list)
     sources: dict[int, Source] = field(default_factory=dict)
     single: bool = False  # one document: its title is the export title
+    scene_break: str = "* * *"  # between untitled parts and for section breaks
+    front: list[str] = field(default_factory=list)  # lines under the title (compile)
 
 
 def _sources_lookup(conn: sqlite3.Connection) -> dict[int, Source]:
@@ -268,11 +270,12 @@ class MarkdownRenderer:
                     items.append(marker + lines[0] + "".join("\n" + " " * len(marker) + l if l else "\n" for l in lines[1:]))
                 out.append("\n".join(items))
             elif t == "sectionBreak":
-                out.append("* * *")
+                out.append(self.exp.scene_break)
         return out
 
     def render(self) -> str:
         chunks = [f"# {_md_text(self.exp.title)}"]
+        chunks.extend(_md_text(line) for line in self.exp.front)
         single = self.exp.single
         for item in self.exp.items:
             if isinstance(item, Section):
@@ -281,7 +284,7 @@ class MarkdownRenderer:
             if item.title_level and not single:
                 chunks.append("#" * item.title_level + " " + _md_text(item.title))
             elif not item.title_level and not item.first:
-                chunks.append("* * *")
+                chunks.append(self.exp.scene_break)
             chunks.extend(b for b in self.blocks(_children(item.doc), item) if b.strip())
         if self.notes.cited:
             chunks.append("## Sources")
@@ -356,11 +359,12 @@ class HtmlRenderer:
                 items = "".join("<li>" + "".join(self.blocks(_children(li), part)) + "</li>" for li in _children(n))
                 out.append(f"<{tag}>{items}</{tag}>")
             elif t == "sectionBreak":
-                out.append('<p class="section-break">* * *</p>')
+                out.append(f'<p class="section-break">{html.escape(self.exp.scene_break)}</p>')
         return out
 
     def render(self) -> str:
         body = [f"<h1>{html.escape(self.exp.title)}</h1>"]
+        body.extend(f'<p class="front">{html.escape(line)}</p>' for line in self.exp.front)
         single = self.exp.single
         css_class = "poem" if "poetryLines" in self.exp.kind.extensions else (
             "indented" if self.exp.kind.theme.get("text_indent", "0") not in ("0", "") else "")
@@ -371,7 +375,7 @@ class HtmlRenderer:
             if item.title_level and not single:
                 body.append(f"<h{item.title_level}>{html.escape(item.title)}</h{item.title_level}>")
             elif not item.title_level and not item.first:
-                body.append('<p class="section-break">* * *</p>')
+                body.append(f'<p class="section-break">{html.escape(self.exp.scene_break)}</p>')
             body.append(f'<div class="{css_class}">' + "\n".join(self.blocks(_children(item.doc), item)) + "</div>")
         if self.notes.cited:
             body.append("<h2>Sources</h2><ul>" + "".join(

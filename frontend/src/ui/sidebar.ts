@@ -381,7 +381,7 @@ export class Sidebar {
       { label: `New ${k.folder_label.toLowerCase()} inside`, run: () => this.host.newFolder(node.id), disabled: node.depth >= 4 },
       { label: 'Rename…', hint: 'F2', run: () => this.host.renameFolder(node) },
       ...this.moveItems(node),
-      this.host.exportFolder && k.exportable ? { label: 'Export as one document…', run: () => this.host.exportFolder!(node) } : null,
+      this.host.exportFolder && k.exportable && !k.tools.compile ? { label: 'Export as one document…', run: () => this.host.exportFolder!(node) } : null,
       ...(this.host.folderMenuExtra?.(node) ?? []),
       { label: '', run: () => undefined, separator: true },
       { label: 'Move to trash', hint: 'Del', run: () => this.host.deleteFolder(node) },

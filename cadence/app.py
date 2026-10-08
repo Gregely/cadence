@@ -16,7 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
-from . import export, fullbackup, library, notebook, research, search, vaults
+from . import draftsets, export, fullbackup, library, manuscript, notebook, research, search, vaults
 from .db import connect, default_db_path, open_db
 from .errors import CadenceError, Invalid
 from .kinds import all_kinds
@@ -483,6 +483,57 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
     @app.get("/api/folders/{folder_id}/export")
     def export_folder(folder_id: int, format: str = "md", conn: sqlite3.Connection = Db):
         return download(export.folder_export(conn, folder_id), format)
+
+    # ------------------------------------------------------------ manuscripts (compile, TODOs, draft sets)
+
+    @app.get("/api/folders/{folder_id}/compile")
+    def compile_folder(
+        folder_id: int, format: str = "docx", title_page: bool = True, author: str = "", conn: sqlite3.Connection = Db
+    ):
+        body, media, filename = manuscript.compile_folder(conn, folder_id, format, title_page, author)
+        return Response(body, media_type=media, headers={"Content-Disposition": export.content_disposition(filename)})
+
+    @app.get("/api/folders/{folder_id}/compile-check")
+    def compile_check(folder_id: int, conn: sqlite3.Connection = Db):
+        return manuscript.check(conn, folder_id)
+
+    @app.get("/api/folders/{folder_id}/todos")
+    def folder_todos(folder_id: int, conn: sqlite3.Connection = Db):
+        return manuscript.todos(conn, folder_id)
+
+    @app.get("/api/folders/{folder_id}/project")
+    def folder_project(folder_id: int, conn: sqlite3.Connection = Db):
+        root = manuscript.project_root(conn, folder_id)
+        return {"id": root["id"], "name": root["name"]}
+
+    @app.get("/api/folders/{folder_id}/draft-sets")
+    def list_draft_sets(folder_id: int, conn: sqlite3.Connection = Db):
+        return draftsets.list_sets(conn, folder_id)
+
+    @app.post("/api/folders/{folder_id}/draft-sets", status_code=201)
+    def take_draft_set(folder_id: int, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return draftsets.take(conn, folder_id, body_dict(payload).get("name"))
+
+    @app.get("/api/draft-sets/{set_id}")
+    def get_draft_set(set_id: int, conn: sqlite3.Connection = Db):
+        return draftsets.get_set(conn, set_id)
+
+    @app.get("/api/draft-sets/{set_id}/documents/{doc_id}")
+    def get_draft_set_item(set_id: int, doc_id: int, conn: sqlite3.Connection = Db):
+        return draftsets.get_item(conn, set_id, doc_id)
+
+    @app.patch("/api/draft-sets/{set_id}")
+    def rename_draft_set(set_id: int, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return draftsets.rename(conn, set_id, body_dict(payload).get("name"))
+
+    @app.delete("/api/draft-sets/{set_id}", status_code=204)
+    def delete_draft_set(set_id: int, conn: sqlite3.Connection = Db):
+        draftsets.delete(conn, set_id)
+        return Response(status_code=204)
+
+    @app.post("/api/draft-sets/{set_id}/restore")
+    def restore_draft_set(set_id: int, payload: Any = Body(default={}), conn: sqlite3.Connection = Db):
+        return draftsets.restore(conn, set_id, opt_int(body_dict(payload or {}), "document_id"))
 
     @app.get("/api/export/full")
     def export_full(conn: sqlite3.Connection = Db):
