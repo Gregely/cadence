@@ -121,3 +121,25 @@ export type PMNode = {
   marks?: { type: string; attrs?: Record<string, unknown> }[];
   text?: string;
 };
+
+export interface Source {
+  id: number;
+  title: string;
+  author: string;
+  url: string;
+  published: string;
+  notes: string;
+  clip_count?: number;
+  clips?: Clip[];
+}
+
+export interface Clip {
+  id: number;
+  source_id: number;
+  quote: string;
+  page: string;
+  note: string;
+  created_at: string;
+  document_ids: number[];
+  source?: Source;
+}

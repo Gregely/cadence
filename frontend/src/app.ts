@@ -442,6 +442,8 @@ export class App implements SidebarHost, ScreenHost {
   private startDraft(): void {
     this.doc = null;
     this.saver.unbind();
+    this.saveLabel.textContent = '';
+    this.saveLabel.dataset.state = '';
     this.createEditor(null, null);
     this.fillChrome();
     this.sidebar.setCurrent(null);

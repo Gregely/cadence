@@ -212,9 +212,12 @@ step('poetry: lines, stanzas and indentation survive', async () => {
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
   await page.keyboard.type('second stanza');
-  await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved');
-  const tree = await api('/api/kinds/poetry/tree');
-  const doc = await api(`/api/documents/${tree.documents[0].id}`);
+  let doc = {};
+  for (let i = 0; i < 50 && !(doc.plain_text || '').endsWith('second stanza'); i++) {
+    await page.waitForTimeout(100);
+    const tree = await api('/api/kinds/poetry/tree');
+    if (tree.documents.length) doc = await api(`/api/documents/${tree.documents[0].id}`);
+  }
   check(doc.title === 'Heron', `poem title (got ${doc.title})`);
   check(doc.plain_text === 'grey at the water\n\twaiting\n\nsecond stanza', `poem lines kept (got ${JSON.stringify(doc.plain_text)})`);
   await page.screenshot({ path: join(out, 'poetry.png') });
@@ -312,6 +315,89 @@ step('fiction: project with ordered scenes, re-entry note, folder export', async
   await ctx.close();
 });
 
+
+step('research: clip, cite, footnote, search, reading notes, export', async () => {
+  const essays = await api('/api/kinds/essay/tree');
+  const essay = essays.documents.find((d) => d.title === 'On walking');
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  guard(page, 'research');
+  await page.goto(`${base}/d/${essay.id}`);
+  await page.waitForSelector('.ProseMirror');
+  await page.keyboard.press('Control+Shift+e');
+  await page.waitForSelector('.research');
+  await page.click('.research button:has-text("Clip a quote")');
+  const form = page.locator('.research .clip-form');
+  await form.locator('textarea').first().fill('In wildness is the preservation of the world.');
+  const inputs = form.locator('input');
+  await inputs.nth(0).fill('Walking');
+  await inputs.nth(1).fill('Henry David Thoreau');
+  await inputs.nth(2).fill('https://example.org/walking');
+  await inputs.nth(3).fill('12');
+  await inputs.nth(4).fill('1862');
+  await form.locator('button[type=submit]').click();
+  await page.waitForSelector('.research .clip');
+  check((await page.locator('.research .clip blockquote').innerText()).includes('wildness'), 'clipped quote listed for the document');
+  // Put the cursor at the end of the text and insert a footnote and a citation.
+  await page.click('.ProseMirror');
+  await page.keyboard.press('Control+End');
+  await page.click('.research .clip button:has-text("Footnote")');
+  await page.waitForTimeout(100);
+  await page.click('.ProseMirror');
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' As he said ');
+  await page.click('.research .clip button:has-text("Cite")');
+  await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved', null, { timeout: 5000 });
+  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved', null, { timeout: 5000 });
+  const doc = await api(`/api/documents/${essay.id}`);
+  check(doc.content_json.includes('"type":"footnote"') && doc.content_json.includes('Henry David Thoreau, “Walking”, 1862, p. 12'), 'footnote from source inserted');
+  check(doc.content_json.includes('"type":"citation"') && doc.content_json.includes('(Thoreau 1862, p. 12)'), 'author-date citation inserted');
+  await page.screenshot({ path: join(out, 'research.png') });
+  // Search my writing and sources.
+  await page.fill('.research input[type=search]', 'heron');
+  await page.waitForSelector('.research .hit');
+  await page.click('.research .hit');
+  await page.waitForSelector('.research-preview');
+  check((await page.locator('.research-preview').innerText()).length > 0, 'preview shows my own document in the pane');
+  await page.click('.research button:has-text("Results")');
+  await page.fill('.research input[type=search]', 'thoreau');
+  await page.waitForSelector('.research .source');
+  await page.click('.research .source button:has-text("Reading notes")');
+  await page.waitForFunction(() => document.querySelector('.doc-title')?.value === 'Reading notes: Walking');
+  check((await page.locator('.ProseMirror').innerText()).includes('Key quotes'), 'reading-notes template opened');
+  // Export carries citations through.
+  const md = await (await fetch(`${base}/api/documents/${essay.id}/export?format=md`)).text();
+  check(md.includes('## Sources') && md.includes('(Thoreau 1862, p. 12)') && md.includes('p. 12'), 'export carries citations and sources');
+  await ctx.close();
+
+  // The bookmarklet page.
+  const ctx2 = await browser.newContext({ viewport: { width: 480, height: 760 } });
+  const p2 = await ctx2.newPage();
+  guard(p2, 'clip-page');
+  await p2.goto(`${base}/clip?quote=${encodeURIComponent('Walking is a virtue.')}&title=${encodeURIComponent('A Page')}&url=${encodeURIComponent('https://example.org/page')}`);
+  await p2.waitForSelector('.clip-form');
+  check(await p2.locator('.clip-form textarea').first().inputValue() === 'Walking is a virtue.', 'clip page is prefilled');
+  await p2.screenshot({ path: join(out, 'clip-page.png') });
+  await p2.click('.clip-form button[type=submit]');
+  await p2.waitForSelector('text=Saved. You can close this window.');
+  const sources = await api('/api/sources?q=A%20Page');
+  check(sources.length === 1 && sources[0].url === 'https://example.org/page', 'clip page saved the source');
+  await ctx2.close();
+
+  // The pane on a phone, e-ink.
+  const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p3 = await ctx3.newPage();
+  guard(p3, 'research-phone');
+  await p3.goto(`${base}/d/${essay.id}?theme=eink`);
+  await p3.waitForSelector('.ProseMirror');
+  await p3.tap('.topbar button:has-text("Research")');
+  await p3.waitForSelector('.research .clip');
+  const box = await p3.locator('.side-pane').boundingBox();
+  check(box && box.width >= 380, 'research pane fills the phone screen');
+  await p3.screenshot({ path: join(out, 'phone-eink-research.png') });
+  await ctx3.close();
+});
 
 const SECRET = 'marmalade heron confession';
 const PASS = 'correct horse battery staple';

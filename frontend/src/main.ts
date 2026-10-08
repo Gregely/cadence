@@ -7,6 +7,11 @@ import { App } from './app';
 
 async function start(): Promise<void> {
   const root = document.getElementById('app')!;
+  if (window.location.pathname === '/clip') {
+    const { clipPage } = await import('./clip');
+    await clipPage(root);
+    return;
+  }
   if (window.location.pathname === '/boox-test') {
     const { booxTest } = await import('./boox');
     booxTest(root);

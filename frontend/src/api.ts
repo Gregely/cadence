@@ -1,6 +1,6 @@
 import type { VaultParams } from './crypto/vault';
 import type {
-  DocFull, DocSummary, Folder, InboxItem, KindDef, SearchHit, Session, Snapshot, Tree,
+  Clip, DocFull, DocSummary, Folder, InboxItem, KindDef, SearchHit, Session, Snapshot, Source, Tree,
 } from './types';
 
 export class ApiError extends Error {
@@ -109,6 +109,21 @@ export const api = {
   vaultItems: (kind: string) => get<{ documents: Record<string, string>; snapshots: Record<string, string> }>(`/api/vaults/${kind}/items`),
   rekey: (kind: string, body: { vault: VaultParams; documents: Record<string, string>; snapshots: Record<string, string> }) =>
     post<VaultParams>(`/api/vaults/${kind}/rekey`, body),
+
+  sources: (query = '') => get<Source[]>(`/api/sources${q({ q: query })}`),
+  source: (id: number) => get<Source>(`/api/sources/${id}`),
+  updateSource: (id: number, body: Partial<Source>) => patch<Source>(`/api/sources/${id}`, body),
+  deleteSource: (id: number) => del<void>(`/api/sources/${id}`),
+  clip: (body: { quote: string; page?: string; note?: string; source: Partial<Source>; document_ids: number[] }) =>
+    post<Clip & { source: Source }>('/api/clips', body),
+  deleteClip: (id: number) => del<void>(`/api/clips/${id}`),
+  attachClip: (clipId: number, docId: number) => post<Clip>(`/api/clips/${clipId}/documents/${docId}`),
+  detachClip: (clipId: number, docId: number) => del<Clip>(`/api/clips/${clipId}/documents/${docId}`),
+  documentClips: (docId: number) => get<(Clip & { source: Source })[]>(`/api/documents/${docId}/clips`),
+  researchSearch: (query: string) => get<{ documents: SearchHit[]; sources: Source[] }>(`/api/research/search${q({ q: query })}`),
+  researchPreview: (id: number) => get<{ id: number; kind: string; title: string; content_json: string; folder_path: string[] }>(`/api/research/preview/${id}`),
+  readingNotes: (sourceId: number, kind: string, folder_id: number | null) =>
+    post<DocFull>(`/api/sources/${sourceId}/reading-notes`, { kind, folder_id }),
 
   search: (query: string, kind: string | null, allKinds = false, limit = 30) =>
     get<SearchHit[]>(`/api/search${q({ q: query, kind: allKinds ? undefined : kind, all_kinds: allKinds || undefined, limit })}`),

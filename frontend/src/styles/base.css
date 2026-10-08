@@ -1462,3 +1462,158 @@ button.crumb {
   color: var(--ink);
   font-weight: 600;
 }
+
+/* ------------------------------------------------------------ research */
+
+.research {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 2rem;
+  min-height: 100%;
+}
+
+.pane-top {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.research input[type='search'] {
+  width: 100%;
+  background: var(--raised);
+  border: var(--border-w) solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  min-height: 2.1rem;
+}
+
+.pane-head {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  margin: 0.75rem 0 0.25rem;
+}
+
+.hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-top: var(--border-w) solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 0.2rem;
+}
+
+.hit-title {
+  font-weight: 600;
+}
+
+.hit-snippet {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.hit-snippet mark,
+.quick-list mark {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.source {
+  border-top: var(--border-w) solid var(--line);
+  padding: 0.5rem 0;
+}
+
+.source h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.source-url {
+  font-size: 0.8rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.clip {
+  margin: 0.5rem 0 0.25rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--line);
+}
+
+[data-theme='eink'] .clip {
+  border-left: 2px solid #000;
+}
+
+.clip blockquote {
+  margin: 0 0 0.25rem;
+  font-family: var(--k-font-body, Georgia, serif);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.clip-note {
+  margin: 0.2rem 0;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.clip .row-actions button {
+  font-size: 0.8rem;
+  min-height: 1.8rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.research-preview {
+  min-height: 0;
+  font-size: 0.95rem;
+}
+
+.clip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.field input,
+.field textarea,
+.field select {
+  color: var(--ink);
+  font-size: 1rem;
+  width: 100%;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.clip-page {
+  display: block;
+  overflow-y: auto;
+}
+
+.clip-page .screen {
+  max-width: 34rem;
+}
+
+.clip-page h1 {
+  font-size: 1.3rem;
+}

@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
-from . import export, fullbackup, library, notebook, search, vaults
+from . import export, fullbackup, library, notebook, research, search, vaults
 from .db import connect, default_db_path, open_db
 from .errors import CadenceError, Invalid
 from .kinds import all_kinds
@@ -369,6 +369,67 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
     @app.post("/api/vaults/{kind_id}/rekey")
     def rekey_vault(kind_id: str, payload: Any = Body(...), conn: sqlite3.Connection = Db):
         return vaults.rekey(conn, kind_id, payload)
+
+    # ------------------------------------------------------------ research
+
+    @app.get("/api/sources")
+    def list_sources(q: str = "", conn: sqlite3.Connection = Db):
+        return research.list_sources(conn, q)
+
+    @app.post("/api/sources", status_code=201)
+    def create_source(payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return research.create_source(conn, payload)
+
+    @app.get("/api/sources/{source_id}")
+    def get_source(source_id: int, conn: sqlite3.Connection = Db):
+        return research.get_source(conn, source_id)
+
+    @app.patch("/api/sources/{source_id}")
+    def update_source(source_id: int, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return research.update_source(conn, source_id, payload)
+
+    @app.delete("/api/sources/{source_id}", status_code=204)
+    def delete_source(source_id: int, conn: sqlite3.Connection = Db):
+        research.delete_source(conn, source_id)
+        return Response(status_code=204)
+
+    @app.post("/api/sources/{source_id}/reading-notes", status_code=201)
+    def reading_notes(source_id: int, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        p = body_dict(payload)
+        return research.reading_notes(conn, source_id, p.get("kind", ""), opt_int(p, "folder_id"))
+
+    @app.post("/api/clips", status_code=201)
+    def create_clip(payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return research.clip(conn, payload)
+
+    @app.patch("/api/clips/{clip_id}")
+    def update_clip(clip_id: int, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return research.update_clip(conn, clip_id, payload)
+
+    @app.delete("/api/clips/{clip_id}", status_code=204)
+    def delete_clip(clip_id: int, conn: sqlite3.Connection = Db):
+        research.delete_clip(conn, clip_id)
+        return Response(status_code=204)
+
+    @app.post("/api/clips/{clip_id}/documents/{doc_id}")
+    def attach_clip(clip_id: int, doc_id: int, conn: sqlite3.Connection = Db):
+        return research.attach(conn, clip_id, doc_id, True)
+
+    @app.delete("/api/clips/{clip_id}/documents/{doc_id}")
+    def detach_clip(clip_id: int, doc_id: int, conn: sqlite3.Connection = Db):
+        return research.attach(conn, clip_id, doc_id, False)
+
+    @app.get("/api/documents/{doc_id}/clips")
+    def document_clips(doc_id: int, conn: sqlite3.Connection = Db):
+        return research.document_clips(conn, doc_id)
+
+    @app.get("/api/research/search")
+    def research_search(q: str = "", conn: sqlite3.Connection = Db):
+        return research.research_search(conn, q)
+
+    @app.get("/api/research/preview/{doc_id}")
+    def research_preview(doc_id: int, conn: sqlite3.Connection = Db):
+        return research.preview(conn, doc_id)
 
     # ------------------------------------------------------------ export
 
