@@ -51,7 +51,7 @@ export function onSettings(fn: (s: Settings) => void): void {
 
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
-  const meta = document.querySelector('meta[name="theme-color"]');
-  const colors: Record<Theme, string> = { paper: '#f7f4ee', dark: '#1c1b19', eink: '#ffffff' };
-  meta?.setAttribute('content', colors[theme]);
+  // The browser bar takes the theme's background, read from its tokens.
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
 }

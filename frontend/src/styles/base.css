@@ -20,6 +20,9 @@
   --border-w: 1px;
   --focus-ring: 2px solid var(--accent);
   --shadow: 0 2px 10px rgba(40, 30, 20, 0.12);
+  --scrim: rgba(0, 0, 0, 0.25);
+  --backdrop: rgba(20, 15, 10, 0.25);
+  --backdrop-light: rgba(20, 15, 10, 0.12);
   color-scheme: light;
 }
 
@@ -62,6 +65,9 @@
   --border-w: 2px;
   --focus-ring: 3px solid #000000;
   --shadow: none;
+  --selection-ink: #ffffff;
+  --placeholder: #555555;
+  --locked-rule: #999999;
   color-scheme: light;
 }
 
@@ -95,7 +101,7 @@ body {
 }
 
 [data-theme='eink'] ::selection {
-  color: #fff;
+  color: var(--selection-ink);
 }
 
 [hidden] {
@@ -261,7 +267,7 @@ select {
   position: fixed;
   inset: 0;
   z-index: 29;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--scrim);
 }
 
 [data-theme='eink'] .layout.mobile.sidebar-open .scrim {
@@ -343,7 +349,7 @@ select {
 }
 
 [data-theme='eink'] .row.current {
-  border-color: #000;
+  border-color: var(--line);
 }
 
 .row .label {
@@ -544,7 +550,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .reentry.prominent {
-  border: 2px solid #000;
+  border: 2px solid var(--line);
   border-left-width: 6px;
 }
 
@@ -625,7 +631,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .doc-title::placeholder {
-  color: #555;
+  color: var(--placeholder);
 }
 
 .doc-date {
@@ -685,8 +691,8 @@ button.crumb {
 }
 
 [data-theme='eink'] .prose blockquote {
-  border-left: 3px solid #000;
-  color: #000;
+  border-left: 3px solid var(--line);
+  color: var(--ink);
 }
 
 .prose a {
@@ -754,7 +760,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .prose cite.citation {
-  border-bottom: 2px dotted #000;
+  border-bottom: 2px dotted var(--line);
 }
 
 .prose p.is-empty:first-child::before {
@@ -857,7 +863,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .format-bar {
-  border: 2px solid #000;
+  border: 2px solid var(--line);
 }
 
 .format-bar .fmt {
@@ -921,7 +927,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .menu button:focus {
-  outline: 2px solid #000;
+  outline: 2px solid var(--line);
 }
 
 .menu-check {
@@ -976,7 +982,7 @@ button.crumb {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(20, 15, 10, 0.25);
+  background: var(--backdrop);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -984,7 +990,7 @@ button.crumb {
 }
 
 .modal-backdrop.light {
-  background: rgba(20, 15, 10, 0.12);
+  background: var(--backdrop-light);
 }
 
 [data-theme='eink'] .modal-backdrop {
@@ -1101,7 +1107,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .toast {
-  border: 2px solid #000;
+  border: 2px solid var(--line);
 }
 
 /* ------------------------------------------------------------ quick open and capture */
@@ -1153,7 +1159,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .quick-list li.active {
-  outline: 2px solid #000;
+  outline: 2px solid var(--line);
 }
 
 .quick-list .label {
@@ -1453,7 +1459,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .lock-form .warning {
-  border: 2px solid #000;
+  border: 2px solid var(--line);
   border-left-width: 6px;
 }
 
@@ -1550,7 +1556,7 @@ button.crumb {
 }
 
 [data-theme='eink'] .clip {
-  border-left: 2px solid #000;
+  border-left: 2px solid var(--line);
 }
 
 .clip blockquote {
@@ -1759,11 +1765,11 @@ button.linkish:hover {
 
 [data-theme='eink'] .inspector input[type='radio'],
 [data-theme='eink'] .inspector input[type='checkbox'] {
-  accent-color: #000;
+  accent-color: var(--accent);
 }
 
 [data-theme='eink'] .row.misc .label {
-  color: #000;
+  color: var(--ink);
 }
 
 .row.stub .label {
@@ -1776,7 +1782,7 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .row.stub .label {
-  color: #000;
+  color: var(--ink);
   text-decoration: underline dotted;
 }
 
@@ -1800,8 +1806,8 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .stub-block {
-  border: 2px dashed #000;
-  color: #000;
+  border: 2px dashed var(--line);
+  color: var(--ink);
 }
 
 .stub-block:hover,
@@ -1875,11 +1881,11 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .target-bar {
-  border: 1px solid #000;
+  border: 1px solid var(--line);
 }
 
 [data-theme='eink'] .target-fill {
-  background: #000;
+  background: var(--ink);
 }
 
 .inspector {
@@ -1954,7 +1960,7 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .compile-warning {
-  border: 2px solid #000;
+  border: 2px solid var(--line);
   border-left-width: 6px;
 }
 
@@ -2004,7 +2010,7 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .prose .todo-marker {
-  outline: 2px dashed #000;
+  outline: 2px dashed var(--line);
   font-weight: 700;
 }
 
@@ -2013,9 +2019,9 @@ button.linkish:hover {
 }
 
 [data-theme='eink'] .prose .forward-locked {
-  color: #000;
+  color: var(--ink);
   text-decoration: underline dotted;
-  text-decoration-color: #999;
+  text-decoration-color: var(--locked-rule);
 }
 
 /* ------------------------------------------------------------ manuscript panes and screens */
@@ -2168,7 +2174,7 @@ button.small {
 }
 
 [data-theme='eink'] .timeline-item {
-  border-left: 3px solid #000;
+  border-left: 3px solid var(--line);
 }
 
 .timeline-when {
