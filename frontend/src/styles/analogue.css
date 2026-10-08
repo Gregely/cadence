@@ -1,0 +1,385 @@
+/* Analogue: a calm, tactile theme. Putty window surfaces, a parchment page,
+   softly raised buttons and sunken fields, thin rules, no gloss.
+
+   Every rule in this file is scoped to [data-theme^='analogue'], so the
+   paper, dark and e-ink themes never see it. Colours live only in the token
+   blocks at the top; the rules below use the tokens. Element-level rules
+   (buttons, fields) sit inside :where() so the component rules in base.css
+   keep their say over menus, rows and toolbars.
+
+   To tweak a palette, change the token values here; tests/themes.test.ts
+   checks that text stays readable (WCAG AA) after the change. */
+
+[data-theme='analogue'] {
+  /* Base tokens (base.css uses these). */
+  --bg: #d8d1c3; /* putty: the window */
+  --surface: #ebe6db; /* a sunken well: notes, warnings */
+  --raised: #efe9dd; /* panels: menus, dialogs */
+  --ink: #26221c;
+  --muted: #4f493f;
+  --faint: #575045;
+  --line: #9a907e;
+  --hover: #ddd6c8;
+  --current: #cbd5c2;
+  --dim: #6d6556;
+  --selection: #cbd6c0;
+  --bar-bg: #3a352d;
+  --bar-ink: #f3eee4;
+  --accent: #46604e; /* sage; each kind tunes it below */
+  --border-w: 1px;
+  --focus-ring: 2px solid var(--focus);
+  --shadow: 2px 3px 0 rgba(58, 48, 34, 0.16);
+  --scrim: rgba(38, 32, 24, 0.28);
+  --backdrop: rgba(38, 32, 24, 0.22);
+  --backdrop-light: rgba(38, 32, 24, 0.1);
+  /* Analogue tokens. */
+  --page: #f6f1e5; /* parchment: the writing page */
+  --well: #ebe6db; /* sunken panels: the library */
+  --field: #f4f0e7; /* sunken inputs */
+  --face: #e4ded1; /* raised buttons */
+  --face-hover: #ebe6da;
+  --face-pressed: #cec7b8;
+  --bevel-hi: #f7f3ea;
+  --bevel-lo: #a59b88;
+  --bevel-soft: #c4bcac;
+  --line-strong: #7d7464;
+  --focus: #3d5a47;
+  color-scheme: light;
+}
+
+/* Each kind keeps its own accent, tuned to the palette: a stripe along the
+   top of the window, link underlines, footnote numbers, focus marks. */
+[data-theme='analogue'] .layout[data-kind='essay'] {
+  --accent: #7a5230;
+}
+
+[data-theme='analogue'] .layout[data-kind='note'] {
+  --accent: #3f6656;
+}
+
+[data-theme='analogue'] .layout[data-kind='poetry'] {
+  --accent: #5a4f7a;
+}
+
+[data-theme='analogue'] .layout[data-kind='diary'] {
+  --accent: #7a4b58;
+}
+
+[data-theme='analogue'] .layout[data-kind='fiction'] {
+  --accent: #3c5a70;
+}
+
+/* ------------------------------------------------------------ controls */
+
+:where([data-theme^='analogue']) button {
+  background: var(--face);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 0 var(--bevel-hi), inset -1px -1px 0 var(--bevel-soft);
+}
+
+:where([data-theme^='analogue']) button:hover {
+  background: var(--face-hover);
+}
+
+/* Pressed: the light and shadow swap, as if the key went down. */
+:where([data-theme^='analogue']) button:active:not(:disabled),
+:where([data-theme^='analogue']) button[aria-pressed='true'],
+[data-theme^='analogue'] .topbar button.on {
+  background: var(--face-pressed);
+  box-shadow: inset 1px 1px 0 var(--bevel-lo), inset -1px -1px 0 var(--bevel-hi);
+}
+
+[data-theme^='analogue'] button.quiet,
+[data-theme^='analogue'] button.icon {
+  box-shadow: none;
+}
+
+[data-theme^='analogue'] button.quiet:active:not(:disabled),
+[data-theme^='analogue'] button.icon:active:not(:disabled) {
+  background: var(--face-pressed);
+  box-shadow: inset 1px 1px 0 var(--bevel-lo), inset -1px -1px 0 var(--bevel-hi);
+}
+
+/* Controls that base.css draws flat stay flat: only the bevel goes. */
+[data-theme^='analogue'] .kind-button,
+[data-theme^='analogue'] button.row,
+[data-theme^='analogue'] .row .more,
+[data-theme^='analogue'] button.crumb,
+[data-theme^='analogue'] .status-select,
+[data-theme^='analogue'] .move-option,
+[data-theme^='analogue'] .hit,
+[data-theme^='analogue'] button.linkish,
+[data-theme^='analogue'] .timeline-item {
+  box-shadow: none;
+}
+
+[data-theme^='analogue'] .topbar button.on {
+  color: var(--ink);
+  border-color: var(--line);
+  text-decoration: none;
+}
+
+:where([data-theme^='analogue']) input[type='text'],
+:where([data-theme^='analogue']) input[type='number'],
+:where([data-theme^='analogue']) input[type='password'],
+:where([data-theme^='analogue']) input[type='url'],
+:where([data-theme^='analogue']) input[type='date'],
+:where([data-theme^='analogue']) input[type='search'],
+:where([data-theme^='analogue']) input:not([type]),
+:where([data-theme^='analogue']) textarea,
+:where([data-theme^='analogue']) select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+}
+
+[data-theme^='analogue'] .research input[type='search'],
+[data-theme^='analogue'] .side-list input[type='search'] {
+  background: var(--field);
+  border-radius: 2px;
+}
+
+/* Fields that are part of the page or a panel stay flat. */
+[data-theme^='analogue'] .doc-title,
+[data-theme^='analogue'] .quick-input,
+[data-theme^='analogue'] .capture input {
+  box-shadow: none;
+}
+
+[data-theme^='analogue'] input[type='checkbox'],
+[data-theme^='analogue'] input[type='radio'] {
+  accent-color: var(--focus);
+}
+
+/* ------------------------------------------------------------ window */
+
+/* The kind's stripe across the top of the window (the accent is set per
+   kind on .layout, so it is read here, not on the root). */
+[data-theme^='analogue'] .layout {
+  border-top: 3px solid var(--accent);
+}
+
+[data-theme^='analogue'] .topbar {
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+[data-theme^='analogue'] .writing,
+[data-theme^='analogue'] .screen-holder {
+  background: var(--page);
+}
+
+/* A sunken strip for the status line. */
+[data-theme^='analogue'] .statusbar {
+  background: var(--well);
+  border-top: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--bevel-soft);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme^='analogue'] .statusbar .quiet {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------ library */
+
+[data-theme^='analogue'] .sidebar {
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+
+/* The tree sits in a sunken well, like a file list. */
+[data-theme^='analogue'] .tree {
+  margin: 0 0.5rem;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+  padding-top: 0.35rem;
+}
+
+[data-theme^='analogue'] .row {
+  border-radius: 2px;
+}
+
+[data-theme^='analogue'] .row.current {
+  background: var(--current);
+  border-color: var(--bevel-soft);
+}
+
+[data-theme^='analogue'] .row .twisty,
+[data-theme^='analogue'] .row .num,
+[data-theme^='analogue'] .row .meta {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme^='analogue'] .sidebar-foot {
+  border-top: none;
+}
+
+[data-theme^='analogue'] .group-head {
+  letter-spacing: 0.08em;
+}
+
+/* ------------------------------------------------------------ panels */
+
+[data-theme^='analogue'] .side-pane {
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+}
+
+[data-theme^='analogue'] .split-body {
+  background: var(--page);
+  border: 1px solid var(--line);
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+[data-theme^='analogue'] .menu,
+[data-theme^='analogue'] .popover {
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+}
+
+[data-theme^='analogue'] .menu button {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+[data-theme^='analogue'] .menu button:hover,
+[data-theme^='analogue'] .menu button:focus {
+  background: var(--current);
+}
+
+/* Dialogs: a thin framed panel with a rule along the top. */
+[data-theme^='analogue'] .modal,
+[data-theme^='analogue'] .quick-open,
+[data-theme^='analogue'] .capture,
+[data-theme^='analogue'] .prompt-form {
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--line-strong);
+  border-radius: 3px;
+}
+
+[data-theme^='analogue'] .panel-head {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+[data-theme^='analogue'] .quick-list li {
+  border-radius: 2px;
+}
+
+[data-theme^='analogue'] .format-bar,
+[data-theme^='analogue'] .toast {
+  border-radius: 3px;
+}
+
+[data-theme^='analogue'] .format-bar .fmt {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+[data-theme^='analogue'] .reentry.prominent,
+[data-theme^='analogue'] .lock-form .warning,
+[data-theme^='analogue'] .compile-warning {
+  background: var(--well);
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+}
+
+[data-theme^='analogue'] .diff,
+[data-theme^='analogue'] .para-diff {
+  background: var(--field);
+  border-radius: 2px;
+}
+
+[data-theme^='analogue'] .stub-block {
+  border-color: var(--line);
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------ reading */
+
+[data-theme^='analogue'] .reader {
+  background: var(--page);
+}
+
+[data-theme^='analogue'] .reader-bar {
+  background: var(--well);
+  box-shadow: inset 0 1px 0 var(--bevel-soft);
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------ focus mode */
+
+/* Only the page: the bars give way to it. */
+[data-theme^='analogue'] .focus-mode .main,
+[data-theme^='analogue'] .focus-mode .topbar {
+  background: var(--page);
+}
+
+[data-theme^='analogue'] .focus-mode .topbar {
+  border-bottom-color: transparent;
+}
+
+/* ------------------------------------------------------------ touch */
+
+/* At least 40px for every control a finger uses. Where a bar must keep its
+   height, the control grows and a negative margin gives the space back, so
+   only the area you can hit gets bigger. */
+@media (pointer: coarse) {
+  :where([data-theme^='analogue']) input[type='text'],
+  :where([data-theme^='analogue']) input[type='number'],
+  :where([data-theme^='analogue']) input[type='password'],
+  :where([data-theme^='analogue']) input[type='url'],
+  :where([data-theme^='analogue']) input[type='date'],
+  :where([data-theme^='analogue']) input[type='search'],
+  :where([data-theme^='analogue']) input:not([type]),
+  :where([data-theme^='analogue']) select {
+    min-height: 2.75rem;
+  }
+
+  [data-theme^='analogue'] .doc-title {
+    min-height: 2.6rem;
+  }
+
+  [data-theme^='analogue'] .status-select {
+    min-height: 2.6rem;
+  }
+
+  [data-theme^='analogue'] button.icon,
+  [data-theme^='analogue'] button.close,
+  [data-theme^='analogue'] .row .more {
+    min-width: 2.75rem;
+    min-height: 2.6rem;
+  }
+
+  [data-theme^='analogue'] button.crumb {
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    margin-block: -0.6rem;
+  }
+
+  [data-theme^='analogue'] .statusbar button {
+    min-height: 2.6rem;
+    margin-block: -0.5rem;
+  }
+
+  [data-theme^='analogue'] button.linkish {
+    display: inline-block;
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    margin-block: -0.85rem;
+  }
+
+  [data-theme^='analogue'] summary {
+    padding-block: 0.75rem;
+  }
+}

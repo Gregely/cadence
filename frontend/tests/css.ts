@@ -105,3 +105,30 @@ export function colourLiterals(value: string): string[] {
   for (const name of NAMED) if (new RegExp(`(^|[\\s,(])${name}($|[\\s,)])`, 'i').test(v)) found.push(name);
   return found;
 }
+
+/** Per-kind tokens a theme sets on .layout[data-kind=...]. */
+export function kindTokens(theme: string): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {};
+  for (const rule of allRules()) {
+    if (!isTokenBlock(rule)) continue;
+    for (const s of rule.selectors) {
+      const m = s.match(new RegExp(`^\\[data-theme='${theme}'\\] \\.layout\\[data-kind='([a-z]+)'\\]$`));
+      if (m) out[m[1]!] = { ...out[m[1]!], ...Object.fromEntries(rule.decls) };
+    }
+  }
+  return out;
+}
+
+function luminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h.slice(0, 6);
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+/** WCAG 2 contrast ratio between two hex colours. */
+export function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x! + 0.05) / (y! + 0.05);
+}

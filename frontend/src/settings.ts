@@ -1,6 +1,8 @@
 import { store } from './lib/storage';
 
-export type Theme = 'paper' | 'dark' | 'eink';
+export type Theme = 'paper' | 'dark' | 'eink' | 'analogue' | 'analogue-dark';
+
+export const THEMES: readonly Theme[] = ['paper', 'dark', 'eink', 'analogue', 'analogue-dark'];
 
 /** Per-device preferences. Nothing here is document content. */
 export interface Settings {
@@ -33,7 +35,7 @@ let current: Settings = { ...DEFAULTS, ...store.json<Partial<Settings>>(KEY, {})
 
 const params = new URLSearchParams(window.location.search);
 const forced = params.get('theme');
-if (forced === 'paper' || forced === 'dark' || forced === 'eink') current.theme = forced;
+if (THEMES.includes(forced as Theme)) current.theme = forced as Theme;
 
 export function settings(): Settings {
   return current;

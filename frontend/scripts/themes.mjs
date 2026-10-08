@@ -310,6 +310,35 @@ function fingerprint() {
   return out;
 }
 
+/** A raised or sunken edge drawn on a control that has no face of its own. */
+function bevelLeaks() {
+  const out = [];
+  for (const el of document.querySelectorAll('button, input, select, textarea')) {
+    const cs = getComputedStyle(el);
+    if (el.offsetParent === null || !cs.boxShadow.includes('inset')) continue;
+    if (cs.backgroundColor === 'rgba(0, 0, 0, 0)') out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}"`);
+  }
+  return out;
+}
+
+/** Controls a finger cannot hit reliably: under 40px in either direction. */
+function smallTargets() {
+  const out = [];
+  for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, summary, [role=treeitem]')) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    if (!r.width || !r.height || cs.visibility === 'hidden' || el.closest('[hidden], [inert]')) continue;
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+    // Links inside running text are exempt (WCAG 2.5.8): they sit in the words.
+    if (el.matches('a') && el.closest('.prose, .reader, .clip')) continue;
+    // A checkbox or radio inside its label is hit through the label.
+    const hit = (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) || el;
+    const box = hit.getBoundingClientRect();
+    if (box.height < 40 || box.width < 40) out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} "${(el.textContent || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').trim().slice(0, 24)}" ${Math.round(box.width)}x${Math.round(box.height)}`);
+  }
+  return out;
+}
+
 async function tour(browser, ids) {
   let failed = 0;
   const fixed = new Date(ids.seededAt + 60 * 60 * 1000);
@@ -335,6 +364,8 @@ async function tour(browser, ids) {
         await page.mouse.move(0, 0);
         await page.screenshot({ path: join(dir, `${name}.png`) });
         writeFileSync(join(dir, `${name}.json`), JSON.stringify(await page.evaluate(fingerprint), null, 0));
+        if (theme.startsWith('analogue')) for (const leak of await page.evaluate(bevelLeaks)) problems.push(`bevel on a flat control: ${leak}`);
+        if (theme.startsWith('analogue') && ctxOpts.hasTouch) for (const t of await page.evaluate(smallTargets)) problems.push(`touch target under 40px: ${t}`);
       } catch (err) {
         problems.push(err.message.split('\n')[0]);
         await page.screenshot({ path: join(dir, `${name}-FAILED.png`) }).catch(() => undefined);

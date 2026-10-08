@@ -1297,6 +1297,7 @@ export class App implements SidebarHost, ScreenHost {
       { label: 'Paper', checked: s.theme === 'paper', run: () => updateSettings({ theme: 'paper' }) },
       { label: 'Dark', checked: s.theme === 'dark', run: () => updateSettings({ theme: 'dark' }) },
       { label: 'E-ink (high contrast)', checked: s.theme === 'eink', run: () => updateSettings({ theme: 'eink' }) },
+      { label: 'Analogue', checked: s.theme === 'analogue', run: () => updateSettings({ theme: 'analogue' }) },
       { label: '', run: () => undefined, separator: true },
       { label: 'Typewriter scrolling', checked: s.typewriter, run: () => updateSettings({ typewriter: !s.typewriter }) },
       { label: 'Word count', checked: s.wordCount, run: () => updateSettings({ wordCount: !s.wordCount }) },

@@ -2,6 +2,7 @@ import '@fontsource/literata/400.css';
 import '@fontsource/literata/400-italic.css';
 import '@fontsource/literata/600.css';
 import './styles/base.css';
+import './styles/analogue.css';
 
 import { App } from './app';
 

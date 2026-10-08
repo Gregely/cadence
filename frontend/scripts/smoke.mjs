@@ -1040,6 +1040,135 @@ for (const theme of ['eink', 'paper', 'dark']) {
   });
 }
 
+/** Text on screen that is too faint for what is behind it (WCAG AA). */
+function lowContrast() {
+  const parse = (c) => {
+    const m = c.match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const [r, g, b, a = 1] = m[1].split(',').map(Number);
+    return { r, g, b, a };
+  };
+  const lum = ({ r, g, b }) => {
+    const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const bgOf = (el) => {
+    for (let e = el; e; e = e.parentElement) {
+      const c = parse(getComputedStyle(e).backgroundColor);
+      if (c && c.a > 0.99) return c;
+    }
+    return parse(getComputedStyle(document.documentElement).backgroundColor) ?? { r: 255, g: 255, b: 255 };
+  };
+  const faded = (el) => { for (let e = el; e; e = e.parentElement) if (Number(getComputedStyle(e).opacity) < 1) return true; return false; };
+  const out = [];
+  const seen = new Set();
+  const check = (el, fgColour, sample, rect) => {
+    const cs = getComputedStyle(el);
+    const fg = parse(fgColour);
+    if (!fg || cs.visibility === 'hidden' || faded(el)) return; // disabled controls are exempt
+    const x = rect.left + Math.min(rect.width / 2, 8);
+    const y = rect.top + rect.height / 2;
+    if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return;
+    const top = document.elementFromPoint(x, y);
+    if (!top || !(top === el || el.contains(top) || top.contains(el))) return; // covered by something else
+    const size = parseFloat(cs.fontSize);
+    const large = size >= 24 || (size >= 18.66 && Number(cs.fontWeight) >= 700);
+    const r = ratio(fg, bgOf(el));
+    if (r < (large ? 3 : 4.5)) out.push(`"${sample.trim().slice(0, 30)}" ${fgColour} on ${JSON.stringify(bgOf(el))}: ${r.toFixed(2)}`);
+  };
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const el = n.parentElement;
+    if (!el || seen.has(el) || !n.textContent.trim()) continue;
+    seen.add(el);
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    const rect = range.getBoundingClientRect();
+    if (rect.width && rect.height) check(el, getComputedStyle(el).color, n.textContent, rect);
+  }
+  for (const input of document.querySelectorAll('input[placeholder], textarea[placeholder]')) {
+    if (input.value) continue;
+    const rect = input.getBoundingClientRect();
+    if (rect.width && rect.height) check(input, getComputedStyle(input, '::placeholder').color, input.placeholder, rect);
+  }
+  return out;
+}
+
+/** Controls a finger cannot hit reliably on a phone: under 40px either way. */
+function smallTargets() {
+  const out = [];
+  for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, summary, [role=treeitem]')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue;
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+    if (el.matches('a') && el.closest('.prose, .reader, .clip')) continue; // links in running text (WCAG 2.5.8)
+    const hit = (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) || el;
+    const box = hit.getBoundingClientRect();
+    if (box.height < 40 || box.width < 40) out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}" ${Math.round(box.width)}x${Math.round(box.height)}`);
+  }
+  return out;
+}
+
+for (const [theme, label] of [['analogue', 'Analogue']]) {
+  step(`${theme} theme: switcher, remembered, readable, draft mode, phone`, async () => {
+    const essays = await api('/api/kinds/essay/tree');
+    const essay = essays.documents.find((d) => d.title === 'On walking');
+    const fen = (await api('/api/kinds/fiction/tree')).folders.find((f) => f.name === 'Chapter One' && f.parent_id !== null);
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    guard(page, theme);
+    await page.goto(`${base}/d/${essay.id}`);
+    await page.waitForSelector('.ProseMirror');
+    check(await page.evaluate(() => document.documentElement.dataset.theme) === 'paper', 'paper is still the default theme');
+    await page.click('.sidebar-foot button:has-text("Settings")');
+    await page.click(`.menu button:has-text("${label}")`);
+    check(await page.evaluate(() => document.documentElement.dataset.theme) === theme, `${theme}: chosen from the settings menu`);
+    await page.reload();
+    await page.waitForSelector('.ProseMirror');
+    check(await page.evaluate(() => document.documentElement.dataset.theme) === theme, `${theme}: remembered after a reload`);
+    const scan = async (where) => { for (const p of await page.evaluate(lowContrast)) failures.push(`${theme} ${where}: low contrast ${p}`); };
+    await scan('essay');
+    await page.click('.sidebar-foot button:has-text("Settings")');
+    await scan('settings menu');
+    await page.keyboard.press('Escape');
+    await page.click('.ProseMirror p');
+    await page.keyboard.press('Control+Shift+f');
+    await scan('focus mode');
+    await page.keyboard.press('Escape');
+    await page.goto(`${base}/f/${fen.id}`);
+    await page.waitForSelector('.combined-doc .ProseMirror');
+    await page.locator('.combined-doc .ProseMirror').first().click();
+    await page.click('.topbar button:has-text("Details")');
+    await page.waitForSelector('.inspector');
+    await scan('chapter view and details');
+    await page.click('.inspector button[aria-label="Close details"]');
+    await page.screenshot({ path: join(out, `${theme}-chapter.png`) });
+    // Draft mode: still only the text, the word count and the next-scene button.
+    await page.locator('.combined-doc .ProseMirror').first().click();
+    await page.keyboard.press('Control+Shift+d');
+    check(!(await page.locator('.sidebar').isVisible()) && !(await page.locator('.topbar').isVisible()), `${theme}: draft mode hides library and toolbar`);
+    check(await page.locator('.word-count').isVisible() && await page.locator('.draft-controls button:has-text("Next scene")').isVisible(), `${theme}: draft mode keeps the word count and next scene`);
+    await scan('draft mode');
+    await page.click('.draft-exit');
+    await ctx.close();
+
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const p2 = await phone.newPage();
+    guard(p2, `${theme}-phone`);
+    await p2.goto(`${base}/d/${essay.id}?theme=${theme}`);
+    await p2.waitForSelector('.ProseMirror');
+    const overflow = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    check(overflow <= 0, `${theme}: no horizontal overflow on phone (${overflow}px)`);
+    for (const t of await p2.evaluate(smallTargets)) failures.push(`${theme} phone: touch target under 40px: ${t}`);
+    await p2.tap('.toggle-sidebar');
+    for (const t of await p2.evaluate(smallTargets)) failures.push(`${theme} phone library: touch target under 40px: ${t}`);
+    for (const c of await p2.evaluate(lowContrast)) failures.push(`${theme} phone library: low contrast ${c}`);
+    await p2.screenshot({ path: join(out, `phone-${theme}-library.png`) });
+    await phone.close();
+  });
+}
+
 step('boox-test: 5,000 words, load and keystroke latency', async () => {
   const ctx = await browser.newContext({ viewport: { width: 758, height: 1024 } });
   const page = await ctx.newPage();
