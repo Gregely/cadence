@@ -24,6 +24,7 @@ of the way when you don't.
 6. [Tests](#tests)
 7. [Developing](#developing)
 8. [Using Cadence](#using-cadence)
+   - [Writing fiction](#writing-fiction)
 9. [Configuration](#configuration)
 10. [Troubleshooting](#troubleshooting)
 11. [Adding a kind](#adding-a-kind)
@@ -247,6 +248,11 @@ Vite serves on <http://localhost:5173> and forwards `/api` to port 8765.
 | Ctrl+. | End the writing session (asks for a one-line note for next time) |
 | Ctrl+Shift+E | Research pane (essays) |
 | Ctrl+Alt+F | Footnote (essays) |
+| Ctrl+Shift+D | Draft mode: only the text, the word count and *Next scene* (fiction) |
+| Ctrl+Shift+Enter | Next scene, right below the current one (fiction) |
+| Ctrl+Shift+P | Search this project (fiction) |
+| `[[ … ]]` | A TODO marker in a scene (fiction; left out of compile) |
+| Reading mode: ← → Space, PgUp/PgDn, tap a side | Turn the page; Esc closes |
 | `* * *` then space | Section break |
 | Library: arrows, Enter, F2, Del | Move, open, rename, trash |
 | Library: Alt+Shift+↑↓ / →← | Move up/down, indent/outdent |
@@ -256,8 +262,7 @@ Vite serves on <http://localhost:5173> and forwards `/api` to port 8765.
   are no font, size or colour controls: the kind and theme decide.
 - **Poetry:** Enter starts a new line, Enter on a blank line starts a new
   stanza, Tab indents. Lines are never reflowed or justified.
-- **Fiction:** a folder is a project; documents inside are numbered, ordered
-  scenes or chapters. Export a folder as one manuscript from its ⋯ menu.
+- **Fiction:** see [Writing fiction](#writing-fiction) below.
 - **Notes:** a dated stream (*Stream* at the top of the library); titles optional.
 - **Diary:** set a passphrase the first time. **If you lose it, your entries
   are lost.** Entries are encrypted in the browser; the server never sees the
@@ -273,6 +278,71 @@ Vite serves on <http://localhost:5173> and forwards `/api` to port 8765.
 - **`/boox-test`** opens a bare editor with about 5,000 words and shows load
   time and keystroke latency at the bottom (`?typewriter=0` to compare,
   `?words=20000` for a longer text). Nothing there is saved.
+
+### Writing fiction
+
+Everything here is optional and hidden until you ask for it; none of it ever
+gets between you and the text.
+
+- **Projects, chapters, scenes.** A top-level folder is a project; folders
+  inside are parts or chapters; documents are *scenes*. A document can
+  instead be a *misc note* (a character, a place, research): it lives in the
+  same folders but stays out of the manuscript, its word counts and compile.
+  Change a document's role in *Details*.
+- **Chapter view.** Click a folder to see every scene in it (and in its
+  sub-folders) as one long page, in library order, with `#` between scenes.
+  Each scene is still its own document with its own autosave; only the
+  scenes near the screen get an editor, so long chapters open quickly. Misc
+  notes wait in a collapsed *Misc notes* strip at the end of their folder.
+  The arrow beside a folder still folds it.
+- **Stubs.** A scene with no text shows as a dashed placeholder with its
+  one-line synopsis, so gaps are visible; click it to start writing.
+- **Next scene** (button under the scene, Ctrl+Shift+Enter) makes a new scene
+  directly below the current one, puts the cursor in it, and shows the
+  re-entry note you left on the scene before.
+- **Draft mode** (Ctrl+Shift+D) hides everything but the text, the word count
+  and *Next scene*. It stays on for fiction until you switch it off (the
+  small × beside the word count does that on a phone).
+- **Details** (topbar) shows the current scene's status — stub □, drafted ◧,
+  revised ▣, done ■ — its one-line synopsis, point of view, in-story date
+  (`1888-03-14`, optionally `T21:30`), word target (a quiet bar appears
+  beside the word count when one is set), role, and a collapsed *Beats*
+  checklist. Beats are notes for you and are never compiled.
+- **Word counts** in the library roll up from scene to chapter to project and
+  count scenes only; hide them with Settings → *Word counts in library*.
+- **TODO markers.** Type `[[fix: anything]]` in a scene. It is outlined in
+  the text, listed under ⋯ → *TODOs in this project* with its chapter and
+  scene (click to jump to it), and left out of compiled files.
+- **Split view.** ⋯ → *Open beside…*, *Open beside* in a library menu, or
+  *Beside* in the misc-notes strip opens another scene or note next to the
+  text. Both are editable and save on their own. (If you open the same scene
+  in both places and type in both, the second save is kept as a snapshot,
+  as for any edit made on two devices at once.)
+- **Search this project** (Ctrl+Shift+P) searches scenes and misc notes in the
+  current project, with chapter and scene for each result; tick *All fiction*
+  to widen it.
+- **Reading mode.** ⋯ → *Read “Chapter …”* (or *Read* in a folder's menu)
+  shows the chapter as pages with no editing at all. Tap the left third of
+  the page to go back, anywhere else to go on.
+- **Timeline.** Once two or more scenes have an in-story date, ⋯ →
+  *Timeline* lists the project's scenes in story order.
+- **Forward-only drafting.** ⋯ → *Forward-only drafting* (off by default, and
+  off again after a reload) makes every paragraph before the one you are
+  writing read-only. Press Enter to move on; switch it off to revise.
+- **Compile.** A project's (or part's, or chapter's) ⋯ menu → *Compile…*
+  makes a Word manuscript in standard submission format — Times New Roman
+  12pt, double-spaced, 1-inch margins, half-inch indents, each chapter on a
+  new page a third of the way down, `#` between scenes, a running
+  *Surname / TITLE / page* header and an optional title page with your name
+  and the word count rounded to the nearest hundred. Markdown and HTML are
+  there too. Misc notes, beats and TODO markers are never included; if
+  markers are left, the dialog says so but still compiles.
+- **Draft sets.** ⋯ → *Draft sets…* saves the text of every document in the
+  project under a name (“Draft 1”). Later, compare the current scene with a
+  set paragraph by paragraph, or restore that scene, or the whole project.
+  A restore first takes an automatic “Before restoring …” set, never deletes
+  anything, leaves documents written since the set as they are, and brings
+  back documents deleted since.
 
 ### Clipping quotes from other web pages
 
@@ -319,6 +389,16 @@ blank page after updating, rebuild the frontend (`npm run build` in
 `frontend`), restart Cadence, and reload the page with Ctrl+F5 so the browser
 does not reuse an old copy. You do not need to change the registry.
 
+## Upgrading
+
+Back up first (`scripts\backup.ps1` or `scripts/backup.sh`), then update the
+code, `npm run build`, and restart Cadence. Database changes run by
+themselves on start-up, once each, and only ever add: this release adds a
+`role` column to documents (filled in from the kinds registry: existing
+fiction documents become scenes) and the draft-set tables. Every existing
+value is left as it was; `tests/test_upgrade.py` checks this against a
+database filled with every kind, diary included.
+
 ## Adding a kind
 
 Kinds live in one registry, `cadence/kinds.py`. To add one, add a
@@ -326,6 +406,12 @@ Kinds live in one registry, `cadence/kinds.py`. To add one, add a
 the names in `cadence/content.py` / `frontend/src/editor/extensions.ts`),
 typography tokens and accent, tools, `searchable`, `exportable`, `encrypted`,
 `folders_enabled` and a list view (`tree`, `stream`, `ordered`, `by-month`).
+Optional: `roles` (the first is the default; a role marked
+`manuscript=False` stays out of the flow, counts and compile), `meta_fields`
+(any of `synopsis`, `pov`, `story_date`, `beats`), `status_symbols`, and the
+manuscript tools in `Tools` (`combined_view`, `draft_mode`, `next_document`,
+`inspector`, `compile`, `draft_sets`, `todo_markers`, `split_view`,
+`project_search`, `reading_mode`, `timeline`, `forward_only`).
 Nothing else changes: the API, search, export, sidebar, editor and theme all
 read the registry (`tests/test_registry.py` checks this). Then run
 `python scripts/dump_kinds.py` to refresh the frontend test fixture.
@@ -370,3 +456,28 @@ These are the choices you might want to revisit.
 - **Search** matches all words, the last as a prefix (`walk` finds walking).
 - Notes, poetry and fiction have no research pane; essays do. That is one
   flag per kind in the registry.
+- **Fiction statuses are squares** (□ ◧ ▣ ■): the quarter-filled circles
+  first tried fell back to tiny glyphs in common fonts. They are set in the
+  registry (`status_symbols`).
+- **Chapter view order** is the library's: sub-folders first, then the
+  folder's own scenes. Clicking a fiction folder opens the chapter view; its
+  arrow folds it.
+- **Next scene** shows the *previous* scene's re-entry note, since a brand-new
+  scene has none of its own.
+- **Draft mode keeps a tiny ×** beside the word count, so it can be left on a
+  touch screen without a keyboard.
+- **The details pane, split view and project lists share the side pane**;
+  opening one closes the other.
+- **Forward-only drafting** applies to every open editor: in a chapter view the
+  scene with the cursor keeps that paragraph open, other scenes only their
+  last paragraph. A click into a read-only paragraph keeps the cursor where you
+  were writing.
+- **Draft sets cover the whole project** (scenes and misc notes), whichever
+  folder you open them from. Restores put text and titles back, never the
+  folder structure.
+- **Compile** rounds the title-page word count to the nearest hundred
+  (“about 81,200 words”), puts parts and chapters on new pages, and uses `#`
+  for scene breaks in all three formats. The author name is remembered on
+  this device only.
+- **TODO markers count as words** in the live word counts (they are short);
+  compile counts without them.

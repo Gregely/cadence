@@ -66,3 +66,11 @@ def test_fiction_status_symbols_and_statuses(api):
     # Essays keep their own statuses.
     assert api.doc("essay", "e", "x", status="draft")["status"] == "draft"
     assert kinds["essay"]["roles"] == [] and kinds["essay"]["status_symbols"] == {}
+
+
+def test_diary_gets_no_roles_or_scene_details(api, diary):
+    e = diary("secret otter")
+    assert e["role"] is None and "synopsis" not in e
+    assert api.c.patch(f"/api/documents/{e['id']}", json={"role": "scene"}).status_code == 422
+    for meta in ({"synopsis": "the otter"}, {"pov": "me"}, {"story_date": "2026-10-08"}, {"beats": [{"text": "x"}]}):
+        assert api.c.patch(f"/api/documents/{e['id']}", json={"meta": meta}).status_code in (400, 422)

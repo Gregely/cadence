@@ -51,6 +51,24 @@
 | Passphrase form | Inputs have no `name`, so even a failed script could not submit them. | OK |
 | Outbound requests | CSP `connect-src 'self'`, `img-src 'self' data: blob:`; no third-party code at run time. | OK, smoke test fails on any off-origin request |
 
+## Fiction tools and the diary
+
+The manuscript tools added for fiction (roles, scene details, the chapter
+view, compile, draft sets, TODO markers, project search, reading mode,
+timeline) are switched on per kind in the registry, and the diary switches
+none of them on. The server checks both the flag and `encrypted`, so turning a
+flag on for an encrypted kind by mistake still refuses:
+
+| Where plaintext could leak | Finding | Status |
+|---|---|---|
+| Roles and scene details (synopsis, POV, story date, beats) | Stored unencrypted in `documents.role` and `meta_json`. | Refused for the diary: no roles, and `meta` is still limited to the cursor. Tested. |
+| Draft sets | Copy `content_json` and `plain_text` of every document in a project into `draft_set_items`. | Only for kinds with `tools.draft_sets` and never for encrypted kinds; the diary has no folders, so it has no projects. Tested. |
+| Compile, compile check, TODO list | Read `plain_text` and the editor JSON on the server. | Same gate (`tools.compile` / `tools.todo_markers`, not encrypted). Tested. |
+| Project search (`folder_id` scope) | Narrows the existing search. | The FTS index still holds only searchable, non-encrypted kinds. Tested. |
+| Full-backup zip | Now also holds `draft_sets` and `draft_set_items`. | No diary rows can be in them. |
+| Combined chapter view, split view | Several editors open at once, each keeping its own unsaved copy in localStorage. | Not offered for the diary; the per-editor copy uses the same request body as before, ciphertext for encrypted kinds. |
+| Migrations 0004–0006 | Add a column and two tables; 0005 fills fiction roles. | Never read or rewrite diary rows; tested on a copy of a populated database with diary ciphertext. |
+
 ## Known limits
 
 - Metadata is visible to the server: how many entries exist, when each was

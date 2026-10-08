@@ -103,3 +103,21 @@ def test_frontend_kinds_fixture_in_sync():
 
     fixture = Path(__file__).resolve().parent.parent / "frontend" / "tests" / "fixtures" / "kinds.json"
     assert json.loads(fixture.read_text(encoding="utf-8")) == [k.to_public() for k in all_kinds()]
+
+
+def test_only_fiction_has_the_manuscript_tools():
+    """This release changes fiction only: every other kind keeps none of the new tools."""
+    from dataclasses import fields
+
+    from cadence.kinds import KINDS, Tools
+
+    new = [f.name for f in fields(Tools) if f.name not in
+           {"research_pane", "session_timer", "word_target", "status", "word_count", "snapshots", "reentry"}]
+    assert len(new) == 12
+    for kid, kind in KINDS.items():
+        if kid == "fiction":
+            assert all(getattr(kind.tools, n) for n in new)
+            continue
+        assert not any(getattr(kind.tools, n) for n in new), kid
+        assert kind.roles == () and kind.meta_fields == () and kind.status_symbols == {}, kid
+        assert not {"todoMarkers", "forwardOnly"} & set(kind.extensions), kid
