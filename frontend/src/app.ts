@@ -35,7 +35,7 @@ export const plainCodec: Codec = {
 /** Extra behaviour added by later stages (diary vault, snapshots, export, research). */
 export interface Feature {
   /** Called before a kind is shown; return false to stop (e.g. a locked vault). */
-  beforeKind?(app: App, kind: KindDef): Promise<boolean>;
+  beforeKind?(app: App, kind: KindDef, docId?: number): Promise<boolean>;
   codec?(app: App, kind: KindDef): Codec | null;
   topbar?(app: App): HTMLElement[];
   documentMenu?(app: App): (MenuItem | null)[];
@@ -211,7 +211,8 @@ export class App implements SidebarHost, ScreenHost {
     const state = await api.state().catch(() => ({ last_document: null }));
     if (state.last_document) {
       const ok = await this.openDocument(state.last_document.id, { push: false, replace: true });
-      if (ok) return;
+      // Opened, or stopped at a lock screen: either way, stay there.
+      if (ok || !this.screenHolder.hidden) return;
     }
     await this.switchKind(this.kinds[0]!.id);
   }
@@ -234,14 +235,35 @@ export class App implements SidebarHost, ScreenHost {
     return plainCodec;
   }
 
-  private async prepareKind(kind: KindDef): Promise<boolean> {
+  private async prepareKind(kind: KindDef, docId?: number): Promise<boolean> {
     for (const f of this.features) {
-      if (f.beforeKind && !(await f.beforeKind(this, kind))) return false;
+      if (f.beforeKind && !(await f.beforeKind(this, kind, docId))) return false;
     }
     return true;
   }
 
-  private applyKind(kind: KindDef): void {
+  /**
+   * Show a kind with nothing open and a screen (the diary lock) in place of
+   * the editor. Any decrypted text in the editor is destroyed.
+   */
+  async showLocked(kind: KindDef, screen: HTMLElement): Promise<void> {
+    await this.leaveDocument();
+    this.opening++;
+    this.editor?.destroy();
+    this.editor = null;
+    clear(this.mount);
+    this.doc = null;
+    this.saver.unbind();
+    this.applyKind(kind);
+    await this.refreshTree();
+    this.titleInput.value = '';
+    this.fillChrome();
+    this.sidebar.setCurrent(null);
+    document.title = `${kind.label} · Cadence`;
+    this.showScreen(screen, window.location.pathname, false);
+  }
+
+  applyKind(kind: KindDef): void {
     this.kind = kind;
     this.el.dataset.kind = kind.id;
     const style = this.el.style;
@@ -317,9 +339,7 @@ export class App implements SidebarHost, ScreenHost {
     }
     const kind = this.kindById(doc.kind);
     if (!kind) return false;
-    if (!this.kind || kind.id !== this.kind.id) {
-      if (!(await this.prepareKind(kind))) return false;
-    }
+    if (!(await this.prepareKind(kind, id))) return false;
     if (ticket !== this.opening) return false;
     await this.leaveDocument();
     try {

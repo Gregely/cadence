@@ -1,3 +1,4 @@
+import type { VaultParams } from './crypto/vault';
 import type {
   DocFull, DocSummary, Folder, InboxItem, KindDef, SearchHit, Session, Snapshot, Tree,
 } from './types';
@@ -102,6 +103,12 @@ export const api = {
   restoreFolder: (id: number) => post<Folder>(`/api/trash/folders/${id}/restore`),
   purgeDocument: (id: number) => del<void>(`/api/trash/documents/${id}`),
   purgeFolder: (id: number) => del<void>(`/api/trash/folders/${id}`),
+
+  vault: (kind: string) => get<{ vault: VaultParams | null }>(`/api/vaults/${kind}`),
+  createVault: (kind: string, params: VaultParams) => post<VaultParams>(`/api/vaults/${kind}`, params),
+  vaultItems: (kind: string) => get<{ documents: Record<string, string>; snapshots: Record<string, string> }>(`/api/vaults/${kind}/items`),
+  rekey: (kind: string, body: { vault: VaultParams; documents: Record<string, string>; snapshots: Record<string, string> }) =>
+    post<VaultParams>(`/api/vaults/${kind}/rekey`, body),
 
   search: (query: string, kind: string | null, allKinds = false, limit = 30) =>
     get<SearchHit[]>(`/api/search${q({ q: query, kind: allKinds ? undefined : kind, all_kinds: allKinds || undefined, limit })}`),

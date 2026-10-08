@@ -16,7 +16,8 @@ async function takeSnapshot(app: App, named: boolean): Promise<void> {
   }
   const now = new Date();
   let label = `Snapshot ${now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${now.toTimeString().slice(0, 5)}`;
-  if (named) {
+  // Encrypted kinds keep dated names: a name would be stored unencrypted.
+  if (named && !app.kind.encrypted) {
     const value = await ask({ title: 'Snapshot name', value: label, ok: 'Take snapshot' });
     if (value === null) return;
     label = value.trim() || label;
@@ -52,7 +53,7 @@ function openPanel(app: App): void {
   panel('Snapshots', (close) => {
     const list = h('div', { class: 'snap-list' });
     const detail = h('div', { class: 'snap-detail' });
-    const take = h('button', { type: 'button', onclick: async () => { await takeSnapshot(app, true); await load(); } }, 'Take snapshot…');
+    const take = h('button', { type: 'button', onclick: async () => { await takeSnapshot(app, true); await load(); } }, app.kind.encrypted ? 'Take snapshot' : 'Take snapshot…');
 
     const compare = async (s: Snapshot) => {
       clear(detail);
@@ -84,7 +85,7 @@ function openPanel(app: App): void {
       h('div', { class: 'row-actions' },
         h('button', { type: 'button', onclick: () => void compare(s) }, 'Compare'),
         h('button', { type: 'button', onclick: () => void restore(s) }, 'Restore'),
-        h('button', { type: 'button', class: 'quiet', onclick: async () => {
+        app.kind.encrypted ? null : h('button', { type: 'button', class: 'quiet', onclick: async () => {
           const label = await ask({ title: 'Rename snapshot', value: s.label, ok: 'Rename' });
           if (label?.trim()) { await api.renameSnapshot(s.id, label.trim()); await load(); }
         } }, 'Rename'),

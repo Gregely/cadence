@@ -173,10 +173,8 @@ def test_trashed_documents_left_out_of_folder_export(api):
     assert keep
 
 
-def test_export_rejected_for_diary_and_bad_format(api):
-    from tests.crypto_helpers import envelope
-
-    d = api.ok(api.c.post("/api/documents", json={"kind": "diary", "content_json": envelope("secret")}))
+def test_export_rejected_for_diary_and_bad_format(api, diary):
+    d = diary("secret")
     for fmt in ("md", "html", "docx"):
         r = api.c.get(f"/api/documents/{d['id']}/export?format={fmt}")
         assert r.status_code == 400

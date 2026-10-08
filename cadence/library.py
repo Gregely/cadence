@@ -40,7 +40,7 @@ def tx(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
 def require_kind(kind_id: str) -> Kind:
     kind = get_kind(kind_id)
     if kind is None:
-        raise Invalid(f"unknown kind {kind_id!r}")
+        raise Invalid("unknown kind")
     return kind
 
 
@@ -377,7 +377,7 @@ def _check_status(kind: Kind, status: Any) -> str | None:
     if status in (None, ""):
         return None
     if not kind.tools.status or status not in kind.statuses:
-        raise Invalid(f"status {status!r} is not valid for {kind.label}")
+        raise Invalid(f"not a valid status for {kind.label}")
     return status
 
 
@@ -410,6 +410,8 @@ def create_document(
     meta_raw = _prepare_meta(kind, meta)
     with tx(conn):
         _check_parent(conn, kind, folder_id)
+        if kind.encrypted and not conn.execute("SELECT 1 FROM vaults WHERE kind = ?", (kind.id,)).fetchone():
+            raise Forbidden(f"set a passphrase for {kind.label} first")
         ts = clock.iso()
         if kind.title_mode == "generated":
             title = generated_title(kind, ts)
@@ -434,7 +436,7 @@ def update_document(conn: sqlite3.Connection, doc_id: int, changes: dict) -> dic
         raise Invalid("use the move endpoint to change a document's folder")
     unknown = set(changes) - UPDATABLE
     if unknown:
-        raise Invalid(f"unknown fields: {', '.join(sorted(unknown))}")
+        raise Invalid("unknown fields in the request")
     with tx(conn):
         row = doc_row(conn, doc_id)
         kind = require_kind(row["kind"])

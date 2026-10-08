@@ -1,0 +1,10 @@
+{
+  "passphrase": "correct horse",
+  "vault": {
+    "kdf": "PBKDF2-SHA256",
+    "iterations": 100000,
+    "salt": "MDEyMzQ1Njc4OWFiY2RlZg==",
+    "check_envelope": "{\"v\": 1, \"alg\": \"AES-GCM\", \"iv\": \"cE0r906W641N0Kpu\", \"ct\": \"DyuL0yVDcn6U2tAvf08GPT6vCn0aOKbbzRGrzZJ8LprSdz4/\"}"
+  },
+  "entry": "{\"v\": 1, \"alg\": \"AES-GCM\", \"iv\": \"3RgF4rJNtNbn6zJ4\", \"ct\": \"DcPPZgSUs2xbExUEaw6hivRMJa7J+Os/Hf5AdNiz4zBbu8Ze3UgsXmVFHIVnok22qLBQxY8n8LUshZGxErO9J8A7oC3bZFkIKv8eEAzcSpSPXrHa3hWnd51Kt9QG56lpKS4NBaeZxUCnooY85VtEnWV2uGyimr9o7P4hmQuO6/t/ysLP0psfPg==\"}"
+}

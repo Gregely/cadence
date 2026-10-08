@@ -84,3 +84,16 @@ class Api:
 @pytest.fixture
 def api(client):
     return Api(client)
+
+
+@pytest.fixture
+def diary(api):
+    """A diary with a passphrase set; returns a helper to add entries."""
+    from tests.crypto_helpers import envelope, vault_payload
+
+    api.ok(api.c.post("/api/vaults/diary", json=vault_payload()))
+
+    def add(text: str) -> dict:
+        return api.ok(api.c.post("/api/documents", json={"kind": "diary", "content_json": envelope(text)}))
+
+    return add

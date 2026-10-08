@@ -58,9 +58,12 @@ def create_snapshot(
             doc = content.validate_doc(content.parse_json(content_json), kind)
             stored = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
         ts = clock.iso()
+        generic = "Snapshot " + ts[:16].replace("T", " ")
+        # Labels are stored as plain text, so encrypted kinds only get dated ones.
+        name = generic if kind.encrypted else _label(label, generic)
         cur = conn.execute(
             "INSERT INTO snapshots (document_id, label, content_json, created_at) VALUES (?, ?, ?, ?)",
-            (doc_id, _label(label, "Snapshot " + ts[:16].replace("T", " ")), stored, ts),
+            (doc_id, name, stored, ts),
         )
         return _snapshot_dict(conn.execute("SELECT * FROM snapshots WHERE id = ?", (cur.lastrowid,)).fetchone())
 
@@ -83,7 +86,10 @@ def get_snapshot(conn: sqlite3.Connection, snap_id: int) -> dict:
 
 def rename_snapshot(conn: sqlite3.Connection, snap_id: int, label: str) -> dict:
     with tx(conn):
-        get_snapshot(conn, snap_id)
+        snap = get_snapshot(conn, snap_id)
+        kind = require_kind(doc_row(conn, snap["document_id"])["kind"])
+        if kind.encrypted:
+            raise Forbidden(f"{kind.label} snapshots keep dated names (a name would be stored unencrypted)")
         conn.execute("UPDATE snapshots SET label = ? WHERE id = ?", (_label(label, "Snapshot"), snap_id))
         return _snapshot_dict(conn.execute("SELECT * FROM snapshots WHERE id = ?", (snap_id,)).fetchone())
 

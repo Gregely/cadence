@@ -103,17 +103,17 @@ def validate_doc(doc: dict, kind: Kind) -> dict:
             raise Invalid("content node must be an object")
         ntype = node.get("type")
         if ntype not in nodes:
-            raise Invalid(f"node type {ntype!r} is not allowed in {kind.label}")
+            raise Invalid(f"a node type is not allowed in {kind.label}")
         if ntype == "text" and not isinstance(node.get("text"), str):
             raise Invalid("text node without text")
         if ntype == "heading":
             level = (node.get("attrs") or {}).get("level")
             if level not in levels:
-                raise Invalid(f"heading level {level!r} is not allowed in {kind.label}")
+                raise Invalid(f"that heading level is not allowed in {kind.label}")
         for mark in node.get("marks") or []:
             mtype = mark.get("type") if isinstance(mark, dict) else None
             if mtype not in marks:
-                raise Invalid(f"mark {mtype!r} is not allowed in {kind.label}")
+                raise Invalid(f"a text style is not allowed in {kind.label}")
             if mtype == "link":
                 href = str((mark.get("attrs") or {}).get("href") or "")
                 if not SAFE_LINK.match(href):

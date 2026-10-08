@@ -90,10 +90,8 @@ def test_unsearchable_kind_never_in_search(api, unsearchable_kind, db_path):
     assert n == 1  # only the essay was indexed
 
 
-def test_diary_never_in_search(api):
-    from tests.crypto_helpers import envelope
-
-    api.ok(api.c.post("/api/documents", json={"kind": "diary", "content_json": envelope("secret otter")}))
+def test_diary_never_in_search(api, diary):
+    diary("secret otter")
     assert api.c.get("/api/search", params={"q": "otter", "kind": "diary"}).status_code == 422
     assert api.search("otter", all_kinds=True) == []
     assert api.search("diary", all_kinds=True) == []

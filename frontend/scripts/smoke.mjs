@@ -312,12 +312,139 @@ step('fiction: project with ordered scenes, re-entry note, folder export', async
   await ctx.close();
 });
 
+
+const SECRET = 'marmalade heron confession';
+const PASS = 'correct horse battery staple';
+
+/** Everything the browser keeps for this origin, as one string. */
+async function browserStores(page) {
+  return page.evaluate(async () => {
+    const parts = [];
+    for (const store of [localStorage, sessionStorage]) {
+      for (let i = 0; i < store.length; i++) parts.push(store.key(i), store.getItem(store.key(i)));
+    }
+    if (indexedDB.databases) parts.push(JSON.stringify(await indexedDB.databases()));
+    for (const name of await caches.keys()) {
+      const cache = await caches.open(name);
+      for (const req of await cache.keys()) {
+        parts.push(req.url);
+        const res = await cache.match(req);
+        const type = res.headers.get('content-type') || '';
+        if (/text|json|javascript/.test(type)) parts.push(await res.text());
+      }
+    }
+    return parts.join('\n');
+  });
+}
+
+step('diary: setup warning, encryption, lock and unlock, nothing leaks', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  guard(page, 'diary');
+  const sent = [];
+  page.on('request', (r) => { const b = r.postData(); if (b) sent.push(r.url() + ' ' + b); });
+  await page.goto(base + '/');
+  await page.waitForSelector('.ProseMirror');
+  await page.keyboard.press('Alt+4');
+  await page.waitForSelector('.lock-form');
+  const warning = await page.locator('.lock-form .warning').innerText();
+  check(/lose this passphrase, your entries are lost/i.test(warning), 'setup warns that a lost passphrase means lost entries');
+  check(/decrypted/i.test(warning), 'setup mentions the decrypted export');
+  await page.screenshot({ path: join(out, 'diary-setup.png') });
+  const inputs = page.locator('.lock-form input[type=password]');
+  await inputs.nth(0).fill(PASS);
+  await inputs.nth(1).fill(PASS);
+  await page.click('.lock-form button[type=submit]');
+  check((await page.locator('.lock-status').innerText()).includes('tick'), 'setup requires confirming the warning');
+  await page.check('#lost-means-lost');
+  await page.click('.lock-form button[type=submit]');
+  await page.waitForSelector('.ProseMirror', { timeout: 20000 });
+  await page.waitForTimeout(300);
+  check(await page.locator('.ProseMirror').getAttribute('spellcheck') === 'false', 'spellcheck is off in the diary');
+  await page.click('.ProseMirror');
+  await page.keyboard.type(`Today: ${SECRET}.`);
+  await page.waitForFunction(() => document.querySelector('.save-state')?.textContent === 'Saved', null, { timeout: 10000 });
+  check(!(await page.locator('.word-count').isVisible()), 'no word count in the diary');
+
+  // The server only has ciphertext.
+  const tree = await api('/api/kinds/diary/tree');
+  check(tree.documents.length === 1 && /^Entry \d{4}-\d\d-\d\d$/.test(tree.documents[0].title), `generic dated title (${tree.documents[0]?.title})`);
+  const doc = await api(`/api/documents/${tree.documents[0].id}`);
+  check(!JSON.stringify(doc).includes('marmalade') && !('plain_text' in doc), 'stored entry is ciphertext only');
+  check(!sent.some((b) => b.includes('marmalade')), 'no request ever carried the plain text');
+  const hits = await api('/api/search?q=marmalade&all_kinds=true');
+  check(hits.length === 0, 'diary text is not searchable');
+
+  // Capture is refused in the diary, and nothing reaches the inbox.
+  await page.keyboard.press('Control+Shift+Space');
+  await page.waitForSelector('.capture');
+  check((await page.locator('.capture').innerText()).includes('Capture is off'), 'capture explains it is off in the diary');
+  const inboxBefore = (await api('/api/inbox?include_handled=true')).length;
+
+  // Snapshot of an encrypted entry is ciphertext too.
+  await page.keyboard.press('Control+Shift+s'); // no name asked: labels are not encrypted
+  await page.waitForSelector('.toast:has-text("Snapshot taken")');
+  check(!(await page.locator('.modal').count()), 'diary snapshots are not named');
+
+  // Decrypted export happens in the browser.
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("decrypted")');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.dialog-actions button:has-text("Save decrypted copy")')]);
+  const { readFileSync } = await import('node:fs');
+  check(readFileSync(await dl.path(), 'utf8').includes(SECRET), 'decrypted export contains the entry');
+
+  // Browser storage holds nothing readable.
+  check(!(await browserStores(page)).includes('marmalade'), 'no plain text in localStorage, sessionStorage, IndexedDB or caches');
+
+  // Lock: the text leaves the page.
+  await page.click('.topbar button:has-text("Lock")');
+  await page.waitForSelector('.lock-form');
+  check(!(await page.content()).includes('marmalade'), 'locking removes the decrypted text from the page');
+  await page.screenshot({ path: join(out, 'diary-locked.png') });
+
+  // Reload: the key was never stored, so it asks again.
+  await page.reload();
+  await page.waitForSelector('.lock-form input[type=password]');
+  await page.fill('.lock-form input[type=password]', 'wrong passphrase here');
+  await page.click('.lock-form button[type=submit]');
+  await page.waitForFunction(() => document.querySelector('.lock-status')?.textContent?.includes('does not open'), null, { timeout: 20000 });
+  await page.fill('.lock-form input[type=password]', PASS);
+  await page.click('.lock-form button[type=submit]');
+  await page.waitForSelector('.ProseMirror', { timeout: 20000 });
+  check((await page.locator('.ProseMirror').innerText()).includes(SECRET), 'unlock decrypts the entry');
+  check((await api('/api/inbox?include_handled=true')).length === inboxBefore, 'nothing was added to the inbox');
+  const snaps = await api(`/api/documents/${tree.documents[0].id}/snapshots`);
+  const snap = await api(`/api/snapshots/${snaps[0].id}`);
+  check(!snap.content_json.includes('marmalade'), 'diary snapshots are ciphertext');
+  await ctx.close();
+});
+
+step('diary: auto-lock after inactivity', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  guard(page, 'autolock');
+  await page.clock.install();
+  await page.goto(`${base}/?theme=eink`);
+  await page.waitForSelector('.lock-form input[type=password]');
+  await page.screenshot({ path: join(out, 'phone-eink-diary-locked.png') });
+  await page.fill('.lock-form input[type=password]', PASS);
+  await page.click('.lock-form button[type=submit]');
+  await page.waitForSelector('.ProseMirror', { timeout: 20000 });
+  check((await page.locator('.ProseMirror').innerText()).includes(SECRET), 'entry open before going idle');
+  await page.clock.fastForward('06:00');
+  await page.waitForSelector('.lock-form', { timeout: 5000 });
+  check(!(await page.content()).includes('marmalade'), 'auto-lock after 5 idle minutes clears the text');
+  await ctx.close();
+});
+
 for (const theme of ['eink', 'paper', 'dark']) {
   step(`phone 390x844, ${theme} theme`, async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
     guard(page, `phone-${theme}`);
-    await page.goto(`${base}/?theme=${theme}`);
+    // The app reopens the last document (now the locked diary), so open an essay by URL.
+    const essays = await api('/api/kinds/essay/tree');
+    await page.goto(`${base}/d/${essays.documents[0].id}?theme=${theme}`);
     await page.waitForSelector('.ProseMirror');
     check(await page.evaluate(() => document.documentElement.dataset.theme) === theme, 'theme applied');
     check(!(await page.locator('.sidebar').isVisible()), `${theme}: sidebar collapsed by default on phone`);

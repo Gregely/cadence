@@ -115,10 +115,8 @@ def test_reentry_note_latest_wins_and_end_is_idempotent(api):
     assert api.c.post(f"/api/sessions/{s2['id']}/end", json={"reentry_note": "x" * 281}).status_code == 422
 
 
-def test_sessions_refused_for_diary_and_notes(api):
-    from tests.crypto_helpers import envelope
-
-    diary = api.ok(api.c.post("/api/documents", json={"kind": "diary", "content_json": envelope("x")}))
-    assert api.c.post("/api/sessions", json={"document_id": diary["id"]}).status_code == 400
+def test_sessions_refused_for_diary_and_notes(api, diary):
+    entry = diary("x")
+    assert api.c.post("/api/sessions", json={"document_id": entry["id"]}).status_code == 400
     note = api.doc("note", "", "x")
     assert api.c.post("/api/sessions", json={"document_id": note["id"]}).status_code == 400

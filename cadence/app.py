@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
-from . import export, fullbackup, library, notebook, search
+from . import export, fullbackup, library, notebook, search, vaults
 from .db import connect, default_db_path, open_db
 from .errors import CadenceError, Invalid
 from .kinds import all_kinds
@@ -351,6 +351,24 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
         conn: sqlite3.Connection = Db,
     ):
         return search.search(conn, q, kind_id=kind, all_kinds=all_kinds, limit=limit)
+
+    # ------------------------------------------------------------ vaults (encrypted kinds)
+
+    @app.get("/api/vaults/{kind_id}")
+    def get_vault(kind_id: str, conn: sqlite3.Connection = Db):
+        return {"vault": vaults.get_vault(conn, kind_id)}
+
+    @app.post("/api/vaults/{kind_id}", status_code=201)
+    def create_vault(kind_id: str, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return vaults.create_vault(conn, kind_id, payload)
+
+    @app.get("/api/vaults/{kind_id}/items")
+    def vault_items(kind_id: str, conn: sqlite3.Connection = Db):
+        return vaults.encrypted_items(conn, kind_id)
+
+    @app.post("/api/vaults/{kind_id}/rekey")
+    def rekey_vault(kind_id: str, payload: Any = Body(...), conn: sqlite3.Connection = Db):
+        return vaults.rekey(conn, kind_id, payload)
 
     # ------------------------------------------------------------ export
 
