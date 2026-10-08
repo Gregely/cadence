@@ -10,7 +10,8 @@ of the way when you don't.
 - One file: SQLite in WAL mode, with full-text search (FTS5).
 - No accounts, no AI, no analytics, and no network requests leave the app
   (enforced by its Content-Security-Policy). Put it behind Tailscale.
-- Installable as a PWA. Paper, dark and high-contrast e-ink themes. No animations.
+- Installable as a PWA. Paper, dark, high-contrast e-ink, Analogue and
+  Analogue Dark themes. No animations.
 
 ---
 
@@ -24,6 +25,7 @@ of the way when you don't.
 6. [Tests](#tests)
 7. [Developing](#developing)
 8. [Using Cadence](#using-cadence)
+   - [Themes](#themes)
    - [Writing fiction](#writing-fiction)
 9. [Configuration](#configuration)
 10. [Troubleshooting](#troubleshooting)
@@ -212,13 +214,23 @@ npm run typecheck
 npm test
 
 # Headless browser smoke test: starts its own server on a temporary database,
-# drives the app at desktop and phone size in all three themes, and saves
+# drives the app at desktop and phone size in every theme, and saves
 # screenshots to frontend\test-results. Needs Chrome, Edge or Chromium installed
 # (set CADENCE_BROWSER to its path if it is not found).
 npm run build
 npm run smoke
 cd ..
 ```
+
+To look at the themes, `npm run themes` (after `npm run build`, in
+`frontend`) walks through every kind and the main views — chapter view, split
+view, reading mode, timeline, draft mode, dialogs, menus, a locked and an open
+diary — at desktop and phone size in each theme, and saves a screenshot of
+each to `frontend/test-results/themes/<theme>/`. `--themes analogue,dark`
+picks themes; `--db seed.sqlite3 --out before` keeps the sample library and
+names the output, and `--compare before after` checks two runs are identical
+in computed style (how the paper, dark and e-ink themes were proved unchanged
+when the Analogue themes were added).
 
 On Linux the same commands work with `.venv/bin/python`.
 
@@ -275,9 +287,42 @@ Vite serves on <http://localhost:5173> and forwards `/api` to port 8765.
 - **E-ink:** Settings → *E-ink (high contrast)*, or open any page with
   `?theme=eink`. Typewriter scrolling (Settings) moves the page on every
   line; on e-ink you may prefer it off.
+- **Themes:** see [Themes](#themes) below.
 - **`/boox-test`** opens a bare editor with about 5,000 words and shows load
   time and keystroke latency at the bottom (`?typewriter=0` to compare,
   `?words=20000` for a longer text). Nothing there is saved.
+
+### Themes
+
+Settings (library footer) lists five themes. The choice is remembered on this
+device; add `?theme=…` to any address to try one for a single visit.
+
+- **Paper** (the default), **Dark**, and **E-ink (high contrast)**: black on
+  white, borders instead of shadows, larger targets.
+- **Analogue**: putty window surfaces around a parchment page, softly raised
+  buttons that visibly go down when pressed, sunken fields and library, a
+  sunken status strip, thin framed dialogs, and a sage accent.
+- **Analogue Dark**: the same design in warm charcoal and umber, with a warm
+  dark page and off-white text.
+
+In both Analogue themes each kind has its own accent, shown as a thin stripe
+along the top of the window and in links and footnote numbers. A faint grain
+on the window frame (never under the page) is on by default; Settings →
+*Grain texture* turns it off. Every text colour meets WCAG AA on every
+surface it is drawn on, and the page text is 12:1 or better.
+
+**Tweaking a palette.** All the colours of both Analogue themes are the
+token blocks at the top of `frontend/src/styles/analogue.css`: `--bg` is the
+window, `--page` the writing page, `--well` the sunken library and status
+strip, `--field` inputs, `--face` buttons (`--face-pressed` when pressed),
+`--bevel-hi`/`--bevel-lo` the light and shadow edges, `--ink`/`--muted`/
+`--faint` the three text tones, `--dim` the dimmed paragraphs in focus mode,
+`--line` rules on the page, `--edge` the outlines of controls, and `--focus`
+the focus ring. The kind accents are the `.layout[data-kind='…']` blocks just
+below. Change a value, then run `npm test` (it checks every text and surface
+pair for contrast and fails if one drops below AA) and `npm run build`; `npm
+run themes -- --themes analogue` shows the result. Nothing outside the token
+blocks writes a colour (a test checks that too).
 
 ### Writing fiction
 
@@ -481,3 +526,21 @@ These are the choices you might want to revisit.
   this device only.
 - **TODO markers count as words** in the live word counts (they are short);
   compile counts without them.
+- **The Analogue themes show each kind as a 3px stripe** along the top of the
+  window (and in link underlines, footnote numbers and the re-entry bar). The
+  paper and dark themes compute their accent once for the whole page, so in
+  practice every kind shares one accent there; that was left exactly as it
+  was.
+- **Analogue sizes on touch screens:** every control is at least 40px. Where
+  a bar has to keep its height (breadcrumbs, the status strip), the control's
+  hit area grows and a negative margin gives the space back, so the bars do
+  not get taller.
+- **Analogue Dark outlines controls in near-black** (`--edge`) but draws
+  rules on the page in a lighter umber (`--line`), so separators stay
+  visible on the dark page.
+- **Grain** is a 160px SVG noise tile drawn once by the browser, on the
+  toolbar, the library frame and the side pane only. The writing area, split
+  view, reading mode and dialogs paint a solid colour.
+- **Existing themes untouched:** paper and dark keep some pale grey labels
+  (word counts in the library, hints) below AA contrast. They were left as
+  they are, since this change was not to alter those themes.
