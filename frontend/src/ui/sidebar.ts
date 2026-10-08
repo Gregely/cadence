@@ -193,7 +193,7 @@ export class Sidebar {
         year = group.year;
         if (year !== now.getFullYear()) this.body.appendChild(h('div', { class: 'group-head year' }, String(year)));
       }
-      this.body.appendChild(h('div', { class: 'group-head' }, `${monthName(group.month)}${group.year !== now.getFullYear() ? '' : ''}`));
+      this.body.appendChild(h('div', { class: 'group-head' }, monthName(group.month)));
       for (const d of group.docs) {
         const dt = new Date(d.created_at);
         const label = `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dt.getDay()]} ${dt.getDate()} · ${timeLabel(d.created_at)}`;

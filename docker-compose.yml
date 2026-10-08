@@ -1,0 +1,12 @@
+# docker compose up -d   (then: tailscale serve --bg 8765)
+services:
+  cadence:
+    build: .
+    image: cadence
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"   # only this machine; Tailscale serve publishes it to your tailnet
+    volumes:
+      - cadence-data:/data
+volumes:
+  cadence-data:

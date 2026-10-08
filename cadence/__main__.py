@@ -17,6 +17,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=int(os.environ.get("CADENCE_PORT", "8765")))
     parser.add_argument("--static", default=os.environ.get("CADENCE_STATIC"), help="built frontend directory")
     args = parser.parse_args()
+    # Writing is private: new database and backup files are readable by this user only.
+    os.umask(0o077)
 
     import uvicorn
 

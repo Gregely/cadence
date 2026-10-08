@@ -73,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dest", type=Path, default=Path(os.environ.get("CADENCE_BACKUP_DIR") or DEFAULT_DEST))
     parser.add_argument("--keep", type=int, default=30)
     args = parser.parse_args(argv)
+    os.umask(0o077)  # backups are as private as the database
     try:
         path = backup(args.db, args.dest, args.keep)
     except Exception as exc:  # noqa: BLE001 - report any failure and exit non-zero

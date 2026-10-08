@@ -1,0 +1,18 @@
+# One backup run (used by cadence-backup.timer). A cron line works too; see README.
+[Unit]
+Description=Back up the Cadence database
+
+[Service]
+Type=oneshot
+User=cadence
+Group=cadence
+WorkingDirectory=/opt/cadence
+Environment=CADENCE_DB=/var/lib/cadence/cadence.sqlite3
+Environment=CADENCE_BACKUP_DIR=/var/lib/cadence/backups
+ExecStart=/opt/cadence/.venv/bin/python -m cadence.backup --keep 30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/cadence
+UMask=0077
