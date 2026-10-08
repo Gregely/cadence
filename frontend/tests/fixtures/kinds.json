@@ -1,0 +1,227 @@
+[
+  {
+    "id": "essay",
+    "label": "Essays",
+    "extensions": [
+      "typography",
+      "heading:2,3",
+      "bold",
+      "italic",
+      "link",
+      "blockquote",
+      "footnote",
+      "citation",
+      "sectionBreak",
+      "hardBreak"
+    ],
+    "theme": {
+      "font_body": "'Literata', 'Iowan Old Style', 'Charter', 'Georgia', serif",
+      "font_heading": "'Literata', 'Iowan Old Style', 'Charter', 'Georgia', serif",
+      "font_size": "1.125rem",
+      "line_height": "1.65",
+      "measure": "38rem",
+      "paragraph_gap": "0.9em",
+      "text_indent": "0",
+      "accent": "#8a5a2b",
+      "accent_dark": "#d9a46c"
+    },
+    "tools": {
+      "research_pane": true,
+      "session_timer": true,
+      "word_target": true,
+      "status": true,
+      "word_count": true,
+      "snapshots": "normal",
+      "reentry": "normal"
+    },
+    "searchable": true,
+    "exportable": true,
+    "encrypted": false,
+    "folders_enabled": true,
+    "list_view": "tree",
+    "statuses": [
+      "idea",
+      "draft",
+      "revising",
+      "done"
+    ],
+    "title_mode": "required",
+    "placeholder": "",
+    "folder_label": "Folder",
+    "item_label": "Essay",
+    "capture_allowed": true,
+    "sessions_allowed": true
+  },
+  {
+    "id": "note",
+    "label": "Notes",
+    "extensions": [
+      "typography",
+      "bold",
+      "italic",
+      "link",
+      "bulletList",
+      "hardBreak"
+    ],
+    "theme": {
+      "font_body": "system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Helvetica Neue', Arial, sans-serif",
+      "font_heading": "system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Helvetica Neue', Arial, sans-serif",
+      "font_size": "1rem",
+      "line_height": "1.55",
+      "measure": "40rem",
+      "paragraph_gap": "0.6em",
+      "text_indent": "0",
+      "accent": "#3d6b5a",
+      "accent_dark": "#8cc7b0"
+    },
+    "tools": {
+      "research_pane": false,
+      "session_timer": false,
+      "word_target": false,
+      "status": false,
+      "word_count": true,
+      "snapshots": "normal",
+      "reentry": "off"
+    },
+    "searchable": true,
+    "exportable": true,
+    "encrypted": false,
+    "folders_enabled": true,
+    "list_view": "stream",
+    "statuses": [],
+    "title_mode": "optional",
+    "placeholder": "",
+    "folder_label": "Folder",
+    "item_label": "Note",
+    "capture_allowed": true,
+    "sessions_allowed": false
+  },
+  {
+    "id": "poetry",
+    "label": "Poetry",
+    "extensions": [
+      "typography",
+      "italic",
+      "hardBreak",
+      "poetryLines",
+      "indent"
+    ],
+    "theme": {
+      "font_body": "'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Book Antiqua', 'Georgia', serif",
+      "font_heading": "'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Book Antiqua', 'Georgia', serif",
+      "font_size": "1.2rem",
+      "line_height": "1.9",
+      "measure": "34rem",
+      "paragraph_gap": "1.9em",
+      "text_indent": "0",
+      "accent": "#5b4f86",
+      "accent_dark": "#b4a8e6"
+    },
+    "tools": {
+      "research_pane": false,
+      "session_timer": true,
+      "word_target": false,
+      "status": false,
+      "word_count": true,
+      "snapshots": "prominent",
+      "reentry": "normal"
+    },
+    "searchable": true,
+    "exportable": true,
+    "encrypted": false,
+    "folders_enabled": true,
+    "list_view": "tree",
+    "statuses": [],
+    "title_mode": "required",
+    "placeholder": "",
+    "folder_label": "Collection",
+    "item_label": "Poem",
+    "capture_allowed": true,
+    "sessions_allowed": true
+  },
+  {
+    "id": "diary",
+    "label": "Diary",
+    "extensions": [
+      "typography",
+      "bold",
+      "italic",
+      "hardBreak"
+    ],
+    "theme": {
+      "font_body": "'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Book Antiqua', 'Georgia', serif",
+      "font_heading": "'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Book Antiqua', 'Georgia', serif",
+      "font_size": "1.1rem",
+      "line_height": "1.7",
+      "measure": "36rem",
+      "paragraph_gap": "0.9em",
+      "text_indent": "0",
+      "accent": "#7a4a5a",
+      "accent_dark": "#d6a0b2"
+    },
+    "tools": {
+      "research_pane": false,
+      "session_timer": false,
+      "word_target": false,
+      "status": false,
+      "word_count": false,
+      "snapshots": "normal",
+      "reentry": "off"
+    },
+    "searchable": false,
+    "exportable": false,
+    "encrypted": true,
+    "folders_enabled": false,
+    "list_view": "by-month",
+    "statuses": [],
+    "title_mode": "generated",
+    "placeholder": "",
+    "folder_label": "Folder",
+    "item_label": "Entry",
+    "capture_allowed": false,
+    "sessions_allowed": false
+  },
+  {
+    "id": "fiction",
+    "label": "Fiction",
+    "extensions": [
+      "typography",
+      "bold",
+      "italic",
+      "sectionBreak",
+      "hardBreak"
+    ],
+    "theme": {
+      "font_body": "'Literata', 'Iowan Old Style', 'Charter', 'Georgia', serif",
+      "font_heading": "'Literata', 'Iowan Old Style', 'Charter', 'Georgia', serif",
+      "font_size": "1.125rem",
+      "line_height": "1.7",
+      "measure": "36rem",
+      "paragraph_gap": "0",
+      "text_indent": "1.5em",
+      "accent": "#2f5d7c",
+      "accent_dark": "#8fbfdf"
+    },
+    "tools": {
+      "research_pane": false,
+      "session_timer": true,
+      "word_target": true,
+      "status": false,
+      "word_count": true,
+      "snapshots": "normal",
+      "reentry": "prominent"
+    },
+    "searchable": true,
+    "exportable": true,
+    "encrypted": false,
+    "folders_enabled": true,
+    "list_view": "ordered",
+    "statuses": [],
+    "title_mode": "required",
+    "placeholder": "",
+    "folder_label": "Project",
+    "item_label": "Scene",
+    "capture_allowed": true,
+    "sessions_allowed": true
+  }
+]

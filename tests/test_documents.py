@@ -119,3 +119,18 @@ def test_api_responses_not_cached(client):
     r = client.get("/api/kinds")
     assert r.headers["cache-control"] == "no-store"
     assert "connect-src 'self'" in r.headers["content-security-policy"]
+
+
+def test_stream_newest_first(api):
+    from datetime import timedelta
+
+    from cadence import clock
+
+    for i in range(3):
+        api.doc("note", "", f"note {i}")
+        clock.advance(timedelta(minutes=1))
+    out = api.ok(api.c.get("/api/kinds/note/stream", params={"limit": 2}))
+    assert [d["plain_text"] for d in out["documents"]] == ["note 2", "note 1"]
+    assert out["more"] is True
+    out = api.ok(api.c.get("/api/kinds/note/stream", params={"offset": 2, "limit": 2}))
+    assert [d["plain_text"] for d in out["documents"]] == ["note 0"] and out["more"] is False

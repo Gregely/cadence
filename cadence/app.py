@@ -154,6 +154,15 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
         out["last_document_id"] = library.last_opened_in_kind(conn, kind_id)
         return out
 
+    @app.get("/api/kinds/{kind_id}/stream")
+    def kind_stream(
+        kind_id: str,
+        offset: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=200),
+        conn: sqlite3.Connection = Db,
+    ):
+        return library.stream(conn, kind_id, offset, limit)
+
     # ------------------------------------------------------------ folders
 
     @app.post("/api/folders", status_code=201)
@@ -348,7 +357,7 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
 
     # ------------------------------------------------------------ frontend
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def frontend(path: str):
         index = static / "index.html"
         if path:

@@ -545,6 +545,18 @@ def tree(conn: sqlite3.Connection, kind_id: str) -> dict:
     return {"kind": kind.id, "folders": folders, "documents": docs}
 
 
+def stream(conn: sqlite3.Connection, kind_id: str, offset: int = 0, limit: int = 50) -> dict:
+    """Newest-first documents with content, for kinds shown as a stream."""
+    kind = require_kind(kind_id)
+    limit = max(1, min(limit, 200))
+    rows = conn.execute(
+        "SELECT * FROM documents WHERE kind = ? AND deleted_at IS NULL"
+        " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+        (kind.id, limit + 1, max(0, offset)),
+    ).fetchall()
+    return {"documents": [doc_full(r) for r in rows[:limit]], "more": len(rows) > limit}
+
+
 def last_opened(conn: sqlite3.Connection) -> dict | None:
     row = conn.execute(
         "SELECT id, kind FROM documents WHERE deleted_at IS NULL AND last_opened_at IS NOT NULL"

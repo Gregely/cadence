@@ -93,3 +93,13 @@ def test_no_kind_ids_hardcoded_in_backend():
             if f'"{kid}"' in text or f"'{kid}'" in text:
                 offenders.append((path.name, kid))
     assert offenders == []
+
+
+def test_frontend_kinds_fixture_in_sync():
+    """frontend/tests/fixtures/kinds.json mirrors the registry (run scripts/dump_kinds.py)."""
+    from pathlib import Path
+
+    from cadence.kinds import all_kinds
+
+    fixture = Path(__file__).resolve().parent.parent / "frontend" / "tests" / "fixtures" / "kinds.json"
+    assert json.loads(fixture.read_text(encoding="utf-8")) == [k.to_public() for k in all_kinds()]
