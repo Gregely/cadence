@@ -10,7 +10,7 @@ const f = (id: number, parent: number | null, sort: number, name = `F${id}`): Fo
 });
 const d = (id: number, folder: number | null, sort: number, created = '2026-01-01T00:00:00Z'): DocSummary => ({
   id, kind: 'essay', folder_id: folder, sort_order: sort, title: `D${id}`, status: null, word_target: null,
-  created_at: created, updated_at: created, last_opened_at: null,
+  created_at: created, updated_at: created, last_opened_at: null, role: null,
 });
 
 // Root: A(1) [ B(2) [ C(3) ] , docs 10, 11 ], E(5); docs 20, 21 at root

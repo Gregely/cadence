@@ -79,7 +79,11 @@ const BOOX_KIND: KindDef = {
     accent: '#8a5a2b',
     accent_dark: '#d9a46c',
   },
-  tools: { research_pane: false, session_timer: false, word_target: false, status: false, word_count: true, snapshots: 'off', reentry: 'off' },
+  tools: {
+    research_pane: false, session_timer: false, word_target: false, status: false, word_count: true, snapshots: 'off', reentry: 'off',
+    combined_view: false, draft_mode: false, next_document: false, inspector: false, compile: false, draft_sets: false,
+    todo_markers: false, split_view: false, project_search: false, reading_mode: false, timeline: false, forward_only: false,
+  },
   searchable: false,
   exportable: false,
   encrypted: false,
@@ -92,6 +96,10 @@ const BOOX_KIND: KindDef = {
   item_label: 'Document',
   capture_allowed: false,
   sessions_allowed: false,
+  roles: [],
+  default_role: null,
+  meta_fields: [],
+  status_symbols: {},
 };
 
 export function booxTest(root: HTMLElement): void {

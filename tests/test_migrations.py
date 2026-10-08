@@ -40,3 +40,35 @@ def test_failed_migration_rolls_back(tmp_path, monkeypatch):
     tables = {r[0] for r in conn.execute("select name from sqlite_master")}
     assert "a" in tables and "b" not in tables
     assert [r[0] for r in conn.execute("select version from schema_migrations")] == [1]
+
+
+def test_python_migrations_run_in_order(tmp_path, monkeypatch):
+    import cadence.db as db
+
+    mig = tmp_path / "migs"
+    mig.mkdir()
+    (mig / "0001_table.sql").write_text("CREATE TABLE t (x);")
+    (mig / "0002_fill.py").write_text("def upgrade(conn):\n    conn.execute(\"INSERT INTO t VALUES ('from python')\")\n")
+    (mig / "0003_more.sql").write_text("INSERT INTO t VALUES ('after');")
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", mig)
+    conn = db.connect(tmp_path / "x.sqlite3")
+    assert migrate(conn) == [1, 2, 3]
+    assert [r[0] for r in conn.execute("select x from t")] == ["from python", "after"]
+    assert migrate(conn) == []
+
+
+def test_failed_python_migration_rolls_back(tmp_path, monkeypatch):
+    import cadence.db as db
+
+    mig = tmp_path / "migs"
+    mig.mkdir()
+    (mig / "0001_table.sql").write_text("CREATE TABLE t (x);")
+    (mig / "0002_bad.py").write_text("def upgrade(conn):\n    conn.execute(\"INSERT INTO t VALUES (1)\")\n    raise RuntimeError('boom')\n")
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", mig)
+    conn = db.connect(tmp_path / "x.sqlite3")
+    try:
+        migrate(conn)
+    except RuntimeError:
+        pass
+    assert conn.execute("select count(*) from t").fetchone()[0] == 0
+    assert [r[0] for r in conn.execute("select version from schema_migrations")] == [1]

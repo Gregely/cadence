@@ -66,7 +66,11 @@ async function api(path, init) {
 /** Every page gets the same guards: no errors, no requests leaving the origin. */
 function guard(page, label) {
   page.on('pageerror', (e) => failures.push(`${label}: page error: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') failures.push(`${label}: console error: ${m.text()}`); });
+  page.on('console', (m) => {
+    // A 409 is the designed answer to a save made on top of an older version;
+    // the conflict tests trigger it on purpose and check it is handled.
+    if (m.type() === 'error' && !m.text().includes('status of 409')) failures.push(`${label}: console error: ${m.text()}`);
+  });
   page.on('request', (r) => {
     const url = r.url();
     if (!url.startsWith(base) && !url.startsWith('data:') && !url.startsWith('blob:')) {
@@ -315,6 +319,115 @@ step('fiction: project with ordered scenes, re-entry note, folder export', async
   await ctx.close();
 });
 
+
+/** A fiction project with nested folders and many scenes, made through the API. */
+async function seedNovel(name, chapters = 3, scenes = 10) {
+  const novel = await api('/api/folders', { method: 'POST', body: JSON.stringify({ kind: 'fiction', name }) });
+  const part = await api('/api/folders', { method: 'POST', body: JSON.stringify({ kind: 'fiction', name: 'Part One', parent_id: novel.id }) });
+  const out = { novel: novel.id, part: part.id, chapters: [], scenes: [] };
+  for (let c = 1; c <= chapters; c++) {
+    const ch = await api('/api/folders', { method: 'POST', body: JSON.stringify({ kind: 'fiction', name: `Chapter ${c}`, parent_id: part.id }) });
+    out.chapters.push(ch.id);
+    for (let i = 1; i <= scenes; i++) {
+      const text = `Scene ${c}.${i} begins. ` + 'The keeper climbed the stair and the lamp turned. '.repeat(20);
+      const content = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
+      const d = await api('/api/documents', { method: 'POST', body: JSON.stringify({ kind: 'fiction', title: `Scene ${c}.${i}`, folder_id: ch.id, content_json: content }) });
+      out.scenes.push(d.id);
+    }
+  }
+  return out;
+}
+
+step('fiction: combined folder view, one editor per scene, draft mode', async () => {
+  const novel = await seedNovel('The Lighthouse', 3, 10);
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  guard(page, 'combined');
+  await page.goto(base + '/');
+  await page.waitForSelector('.sidebar');
+  // Essays are unchanged: clicking a folder folds it, it does not open a view.
+  await page.keyboard.press('Alt+1');
+  await page.waitForFunction(() => document.querySelector('.layout')?.dataset.kind === 'essay');
+  await page.locator('.row.folder').first().click();
+  await page.waitForTimeout(200);
+  check(!(await page.locator('.combined').count()), 'essay folders still fold instead of opening a combined view');
+  check(await page.locator('.row.folder').first().getAttribute('aria-expanded') === 'false', 'essay folder folded');
+  await page.locator('.row.folder').first().click();
+
+  await page.keyboard.press('Alt+5');
+  await page.waitForFunction(() => document.querySelector('.layout')?.dataset.kind === 'fiction');
+  await page.locator('.row.folder', { hasText: 'Part One' }).click();
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  await page.waitForTimeout(300);
+  const sections = await page.locator('.combined-doc').count();
+  const mounted = await page.locator('.combined-doc .ProseMirror').count();
+  check(sections === 30, `combined view lists every scene in the part (${sections})`);
+  check(mounted > 0 && mounted < 10, `editors are mounted lazily (${mounted} of ${sections})`);
+  check(await page.locator('.combined .folder-heading').count() === 3, 'each chapter has a heading');
+  check((await page.locator('.combined-doc .doc-heading').first().innerText()).includes('Scene 1.1'), 'each document has a small title heading');
+  check(page.url().endsWith(`/f/${novel.part}`), 'folder view has its own address');
+  // Each section saves to its own document.
+  await page.locator('.combined-doc .ProseMirror').nth(0).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' FIRST-EDIT');
+  await page.locator('.combined-doc .ProseMirror').nth(1).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' SECOND-EDIT');
+  for (let i = 0; i < 50; i++) {
+    const [a, b] = await Promise.all(novel.scenes.slice(0, 2).map((id) => api(`/api/documents/${id}`)));
+    if (a.plain_text.endsWith('FIRST-EDIT') && b.plain_text.endsWith('SECOND-EDIT')) break;
+    await page.waitForTimeout(100);
+  }
+  const [s1, s2, s3] = await Promise.all(novel.scenes.slice(0, 3).map((id) => api(`/api/documents/${id}`)));
+  check(s1.plain_text.endsWith('FIRST-EDIT') && !s1.plain_text.includes('SECOND'), 'first scene saved to itself');
+  check(s2.plain_text.endsWith('SECOND-EDIT') && !s2.plain_text.includes('FIRST'), 'second scene saved to itself');
+  check(!s3.plain_text.includes('EDIT'), 'untouched scene unchanged');
+  await page.screenshot({ path: join(out, 'fiction-combined.png') });
+  // Conflict inside the view: someone else changes scene 2; our next edit is kept as a snapshot.
+  await api(`/api/documents/${novel.scenes[1]}`, { method: 'PATCH', body: JSON.stringify({ plain_text: 'Changed on another device.' }) });
+  await page.keyboard.type(' LOCAL');
+  await page.waitForSelector('.toast:has-text("changed elsewhere")', { timeout: 8000 });
+  const snaps = await api(`/api/documents/${novel.scenes[1]}/snapshots`);
+  check(snaps.some((x) => x.label.includes('changed elsewhere')), 'conflict in a section kept the local version as a snapshot');
+  check((await api(`/api/documents/${novel.scenes[1]}`)).plain_text === 'Changed on another device.', 'the other version is now shown and kept');
+  // Scrolling further mounts more editors.
+  await page.evaluate(() => { const s = document.querySelector('.writing'); s.scrollTop = s.scrollHeight; });
+  await page.waitForTimeout(400);
+  check(await page.locator('.combined-doc .ProseMirror').count() > mounted, 'scrolling mounts more editors');
+  // Back to the first scene, then reload: the folder view and the scene come back.
+  await page.locator('.combined-doc .ProseMirror').first().click();
+  await page.waitForTimeout(900);
+  await page.reload();
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  await page.waitForTimeout(400);
+  check(page.url().endsWith(`/f/${novel.part}`), 'reload reopens the folder view');
+  check(await page.evaluate(() => document.activeElement?.closest('.combined-doc')?.getAttribute('data-doc')) === String(novel.scenes[0]),
+    'reload puts the cursor back in the scene being written');
+  // Draft mode: only the text and the word count.
+  await page.keyboard.press('Control+Shift+d');
+  check(!(await page.locator('.sidebar').isVisible()) && !(await page.locator('.topbar').isVisible()), 'draft mode hides library and toolbar');
+  check(await page.locator('.word-count').isVisible(), 'draft mode keeps the word count');
+  check(!(await page.locator('.combined .doc-heading').first().isVisible()), 'draft mode hides section headings');
+  await page.screenshot({ path: join(out, 'fiction-draft-mode.png') });
+  await page.reload();
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  check(await page.evaluate(() => document.querySelector('.layout').classList.contains('draft-mode')), 'draft mode is remembered for fiction');
+  await page.click('.draft-exit');
+  check(await page.locator('.topbar').isVisible(), 'draft mode can be left with its × button');
+  await ctx.close();
+
+  // Phone, e-ink.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await phone.newPage();
+  guard(p2, 'combined-phone');
+  await p2.goto(`${base}/f/${novel.chapters[1]}?theme=eink`);
+  await p2.waitForSelector('.combined-doc .ProseMirror');
+  check(await p2.locator('.combined-doc').count() === 10, 'chapter view on the phone');
+  const overflow = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(overflow <= 0, `combined view fits the phone (${overflow}px)`);
+  await p2.screenshot({ path: join(out, 'phone-eink-combined.png') });
+  await phone.close();
+});
 
 step('research: clip, cite, footnote, search, reading notes, export', async () => {
   const essays = await api('/api/kinds/essay/tree');

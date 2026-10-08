@@ -2,6 +2,8 @@ import type { JSONContent } from '@tiptap/core';
 
 import { ApiError, api } from './api';
 import { DocEditor } from './editor/doc-editor';
+import { CombinedView, lastView, rememberView } from './views/combined';
+import type { DocPane } from './views/docpane';
 import { hasExtension } from './editor/extensions';
 import { longDate } from './lib/dates';
 import { clear, h, isTypingTarget } from './lib/dom';
@@ -55,7 +57,11 @@ export class App implements SidebarHost, ScreenHost {
   tree!: Tree;
   doc: DocFull | null = null;
   editor: DocEditor | null = null;
+  /** The combined folder view, when a folder is open instead of one document. */
+  view: CombinedView | null = null;
   readonly features: Feature[] = [];
+  /** Every document editor besides the main one (combined view, split view). */
+  readonly panes = new Set<DocPane>();
 
   readonly el: HTMLElement;
   readonly sidebar: Sidebar;
@@ -76,6 +82,8 @@ export class App implements SidebarHost, ScreenHost {
   private wordLabel: HTMLElement;
   private timerLabel: HTMLElement;
   private promptBar: HTMLElement;
+  /** Shown only in draft mode, beside the word count. */
+  readonly draftControls: HTMLElement;
   readonly saver: Saver;
   readonly sessions: Sessions;
   private opening = 0;
@@ -132,7 +140,12 @@ export class App implements SidebarHost, ScreenHost {
     this.saveLabel = h('span', { class: 'save-state', role: 'status', 'aria-live': 'polite' });
     this.wordLabel = h('button', { type: 'button', class: 'word-count quiet', title: 'Hide word count', onclick: () => updateSettings({ wordCount: false }) });
     this.timerLabel = h('span', { class: 'timer' });
-    const status = h('footer', { class: 'statusbar' }, this.saveLabel, h('span', { class: 'spacer' }), this.timerLabel, this.wordLabel);
+    this.draftControls = h('span', { class: 'draft-controls' },
+      h('button', {
+        type: 'button', class: 'quiet draft-exit', title: 'Leave draft mode (Ctrl+Shift+D)', 'aria-label': 'Leave draft mode',
+        onclick: () => this.toggleDraftMode(false),
+      }, '×'));
+    const status = h('footer', { class: 'statusbar' }, this.saveLabel, h('span', { class: 'spacer' }), this.timerLabel, this.wordLabel, this.draftControls);
     this.promptBar = h('div', { class: 'prompt-bar', hidden: true });
     this.main = h('main', { class: 'main' }, this.topbar, this.reentry, this.scroller, this.screenHolder, status, this.promptBar);
     this.sidePaneSlot = h('div', { class: 'side-pane', hidden: true });
@@ -154,7 +167,10 @@ export class App implements SidebarHost, ScreenHost {
 
     document.addEventListener('keydown', (e) => this.onKey(e));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') void this.saver.flush(true);
+      if (document.visibilityState === 'hidden') {
+        void this.saver.flush(true);
+        void this.view?.flush(true);
+      }
     });
     window.addEventListener('popstate', () => void this.route());
     onSettings((s) => this.applySettings(s));
@@ -192,6 +208,13 @@ export class App implements SidebarHost, ScreenHost {
       await this.openDocument(Number(m[1]), { push: false });
       return;
     }
+    const f = path.match(/^\/f\/(\d+)/);
+    if (f) {
+      const id = Number(f[1]);
+      const lv = lastView();
+      if (!(await this.openFolder(id, { push: false, focusDoc: lv?.folder === id ? lv.doc : null }))) await this.openLast();
+      return;
+    }
     if (path === '/inbox' || path === '/trash' || path.startsWith('/stream/')) {
       if (!this.kind) await this.openLast();
       if (path === '/inbox') this.openInbox(false);
@@ -209,6 +232,11 @@ export class App implements SidebarHost, ScreenHost {
   /** Open straight to the last document, wherever it was. Never a dashboard. */
   private async openLast(): Promise<void> {
     const state = await api.state().catch(() => ({ last_document: null }));
+    const lv = lastView();
+    if (state.last_document && lv && lv.doc === state.last_document.id) {
+      // We were writing this document inside its folder's combined view.
+      if (await this.openFolder(lv.folder, { push: false, replace: true, focusDoc: lv.doc })) return;
+    }
     if (state.last_document) {
       const ok = await this.openDocument(state.last_document.id, { push: false, replace: true });
       // Opened, or stopped at a lock screen: either way, stay there.
@@ -274,7 +302,8 @@ export class App implements SidebarHost, ScreenHost {
     for (const [key, value] of Object.entries(kind.theme)) {
       style.setProperty(`--k-${key.replace(/_/g, '-')}`, value);
     }
-    this.statusSelect.hidden = !kind.tools.status;
+    this.statusSelect.hidden = !kind.tools.status || kind.tools.inspector;
+    this.el.classList.toggle('draft-mode', kind.tools.draft_mode && store.get(`cadence.draftMode.${kind.id}`) === '1');
     clear(this.statusSelect);
     this.statusSelect.appendChild(h('option', { value: '' }, 'No status'));
     for (const s of kind.statuses) this.statusSelect.appendChild(h('option', { value: s }, s));
@@ -392,6 +421,7 @@ export class App implements SidebarHost, ScreenHost {
     }
     this.fillChrome();
     this.sidebar.setCurrent(doc.id);
+    rememberView(null);
     const url = `/d/${doc.id}`;
     if (opts.replace) history.replaceState(null, '', url);
     else if (opts.push !== false && window.location.pathname !== url) history.pushState(null, '', url);
@@ -399,6 +429,115 @@ export class App implements SidebarHost, ScreenHost {
     if (opts.focus !== false) this.editor?.focus();
     for (const f of this.features) f.onDocument?.(this);
     return true;
+  }
+
+  // ------------------------------------------------------------ combined folder view
+
+  /** Open every document in a folder at once (kinds with tools.combined_view). */
+  async openFolder(folderId: number, opts: { push?: boolean; replace?: boolean; focusDoc?: number | null } = {}): Promise<boolean> {
+    let tree = this.tree;
+    let kind = this.kind;
+    let folder = tree && this.sidebar.root?.byFolder.get(folderId);
+    if (!folder) {
+      // Not in the current kind: find which kind it belongs to.
+      for (const k of this.kinds.filter((x) => x.tools.combined_view)) {
+        const t = await api.tree(k.id);
+        if (t.folders.some((x) => x.id === folderId)) {
+          if (!(await this.prepareKind(k))) return false;
+          await this.leaveDocument();
+          this.applyKind(k);
+          this.tree = t;
+          this.sidebar.setData(k, t, null);
+          kind = k;
+          tree = t;
+          folder = this.sidebar.root.byFolder.get(folderId);
+          break;
+        }
+      }
+    }
+    if (!folder || !kind.tools.combined_view) return false;
+    const ticket = ++this.opening;
+    await this.leaveDocument();
+    if (ticket !== this.opening) return false;
+    this.editor?.destroy();
+    this.editor = null;
+    clear(this.mount);
+    this.doc = null;
+    this.saver.unbind();
+    this.closeScreen();
+    this.page.hidden = true;
+    this.reentry.hidden = true;
+    const view = new CombinedView(this, kind, folder, this.scroller);
+    this.view = view;
+    this.scroller.appendChild(view.el);
+    this.scroller.scrollTop = 0;
+    this.fillViewChrome();
+    this.sidebar.setCurrent(null);
+    this.sidebar.setCurrentFolder(folderId);
+    const url = `/f/${folderId}`;
+    if (opts.replace) history.replaceState(null, '', url);
+    else if (opts.push !== false && window.location.pathname !== url) history.pushState(null, '', url);
+    if (window.matchMedia(MOBILE).matches) this.setSidebar(false);
+    rememberView({ folder: folderId, doc: opts.focusDoc ?? null });
+    await view.open(opts.focusDoc ?? null);
+    for (const f of this.features) f.onDocument?.(this);
+    return true;
+  }
+
+  private async closeView(): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    this.view = null;
+    await view.close();
+    this.page.hidden = false;
+    this.sidebar.setCurrentFolder(null);
+  }
+
+  private fillViewChrome(): void {
+    const view = this.view;
+    if (!view) return;
+    this.saveLabel.textContent = '';
+    this.saveLabel.dataset.state = '';
+    this.statusSelect.hidden = true;
+    clear(this.crumbs);
+    this.crumbs.classList.add('view-crumbs');
+    this.crumbs.appendChild(h('button', { type: 'button', class: 'crumb', onclick: () => this.openKindSwitcher() }, this.kind.label));
+    for (const f of folderPath(this.sidebar.root, view.folder.id)) {
+      this.crumbs.appendChild(h('span', { class: 'crumb-sep', 'aria-hidden': 'true' }, '/'));
+      this.crumbs.appendChild(h('button', { type: 'button', class: 'crumb', onclick: () => void this.openFolder(f.id) }, f.folder.name));
+    }
+    document.title = `${view.folder.folder.name} · Cadence`;
+  }
+
+  /** A document inside the combined view got the cursor. */
+  onViewFocus(_pane: DocPane): void {
+    for (const f of this.features) f.onDocument?.(this);
+  }
+
+  /** The document being written: the open one, or the focused one in a folder view. */
+  activeDocId(): number | null {
+    return this.view?.active?.id ?? this.doc?.id ?? null;
+  }
+
+  setWordLabel(text: string | null): void {
+    const show = settings().wordCount && this.kind?.tools.word_count && text !== null;
+    this.wordLabel.hidden = !show;
+    if (show) this.wordLabel.textContent = text;
+  }
+
+  /** After a metadata change: every editor of that document saves on top of the new version. */
+  rebaseDoc(docId: number, updatedAt: string): void {
+    if (this.doc?.id === docId) {
+      this.saver.rebase(updatedAt);
+      this.doc.updated_at = updatedAt;
+    }
+    for (const p of this.panes) if (p.id === docId) p.rebase(updatedAt);
+  }
+
+  /** Save every editor showing this document. */
+  async flushDoc(docId: number): Promise<void> {
+    if (this.doc?.id === docId) await this.saver.flush();
+    await Promise.all([...this.panes].filter((p) => p.id === docId).map((p) => p.flush()));
   }
 
   /** Reload the open document from the server (after a restore, say). */
@@ -500,6 +639,7 @@ export class App implements SidebarHost, ScreenHost {
   async leaveDocument(): Promise<void> {
     window.clearTimeout(this.cursorTimer);
     if (this.creating) await this.creating;
+    if (this.view) await this.closeView();
     if (this.doc && this.editor) {
       this.rememberCursor();
       await this.saver.flush();
@@ -621,6 +761,7 @@ export class App implements SidebarHost, ScreenHost {
 
   private fillCrumbs(): void {
     clear(this.crumbs);
+    this.crumbs.classList.remove('view-crumbs');
     const kindLink = h('button', { type: 'button', class: 'crumb', onclick: () => this.openKindSwitcher() }, this.kind.label);
     this.crumbs.appendChild(kindLink);
     if (!this.doc || !this.sidebar.root) return;
@@ -648,6 +789,10 @@ export class App implements SidebarHost, ScreenHost {
   }
 
   private updateWords(): void {
+    if (this.view) {
+      this.view.updateWords();
+      return;
+    }
     const show = settings().wordCount && this.kind?.tools.word_count && !!this.editor;
     this.wordLabel.hidden = !show;
     if (!show || !this.editor) return;
@@ -656,7 +801,7 @@ export class App implements SidebarHost, ScreenHost {
     this.wordLabel.textContent = target ? `${formatCount(words)} / ${formatCount(target)} words` : `${formatCount(words)} words`;
   }
 
-  private showSaveState(state: SaveState, message?: string): void {
+  showSaveState(state: SaveState, message?: string): void {
     const text: Record<SaveState, string> = {
       saved: 'Saved',
       saving: 'Saving…',
@@ -781,6 +926,19 @@ export class App implements SidebarHost, ScreenHost {
     const btn = this.topbar.querySelector('.focus-toggle');
     if (btn) btn.textContent = next ? 'Leave focus' : 'Focus';
     this.editor?.focus();
+  }
+
+  /**
+   * Draft mode (kinds with tools.draft_mode): only the text, the word count
+   * and the next-document button. Remembered per kind on this device.
+   */
+  toggleDraftMode(on?: boolean): void {
+    if (!this.kind?.tools.draft_mode) return;
+    const next = on ?? !this.el.classList.contains('draft-mode');
+    this.el.classList.toggle('draft-mode', next);
+    store.set(`cadence.draftMode.${this.kind.id}`, next ? '1' : '0');
+    if (this.view) this.view.active?.editor?.focus();
+    else this.editor?.focus();
   }
 
   // ------------------------------------------------------------ screens
@@ -985,6 +1143,7 @@ export class App implements SidebarHost, ScreenHost {
     const items: (MenuItem | null)[] = [
       { label: 'Focus mode', hint: 'Ctrl+Shift+F', checked: this.el.classList.contains('focus-mode'), run: () => this.toggleFocus() },
       { label: 'Library', hint: 'Ctrl+\\', checked: this.el.classList.contains('sidebar-open'), run: () => this.toggleSidebar() },
+      k.tools.draft_mode ? { label: 'Draft mode', hint: 'Ctrl+Shift+D', checked: this.el.classList.contains('draft-mode'), run: () => this.toggleDraftMode() } : null,
       { label: '', run: () => undefined, separator: true },
       e && hasExtension(k, 'footnote') ? { label: 'Insert footnote', hint: 'Ctrl+Alt+F', run: () => e.addFootnote() } : null,
       e && hasExtension(k, 'sectionBreak') ? { label: 'Insert section break', hint: '* * *', run: () => e.editor.chain().focus().insertSectionBreak().run() } : null,
@@ -1053,6 +1212,7 @@ export class App implements SidebarHost, ScreenHost {
       ['Ctrl+Alt+F', 'Footnote (essays)'],
       ['* * *', 'Section break on an empty line'],
       ['Ctrl+Shift+E', 'Research pane (essays)'],
+      ['Ctrl+Shift+D', 'Draft mode: only the text (fiction)'],
       ['Library: ↑ ↓ ← →', 'Move between items'],
       ['Library: Alt+Shift+↑ ↓', 'Move item up or down'],
       ['Library: Alt+Shift+→ ←', 'Indent or outdent'],
@@ -1090,12 +1250,16 @@ export class App implements SidebarHost, ScreenHost {
     } else if (mod && e.shiftKey && key === 'f') {
       e.preventDefault();
       this.toggleFocus();
+    } else if (mod && e.shiftKey && !e.altKey && key === 'd' && this.kind?.tools.draft_mode) {
+      e.preventDefault();
+      this.toggleDraftMode();
     } else if (mod && e.altKey && key === 'n') {
       e.preventDefault();
       void this.newDocument(this.sidebar.contextFolder());
     } else if (mod && !e.shiftKey && key === 's') {
       e.preventDefault();
       void this.saver.flush().then(() => this.rememberCursor());
+      void this.view?.flush();
     } else if (mod && key === '.') {
       e.preventDefault();
       void this.endSession();

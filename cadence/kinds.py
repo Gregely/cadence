@@ -12,7 +12,7 @@ indent) only change editing behaviour.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 ListView = Literal["tree", "stream", "ordered", "by-month"]
@@ -29,6 +29,33 @@ class Tools:
     word_count: bool = True
     snapshots: Prominence = "normal"
     reentry: Prominence = "normal"
+    # Manuscript tools. All optional and off unless a kind turns them on.
+    combined_view: bool = False  # clicking a folder shows every document in it
+    draft_mode: bool = False  # hotkey: only the text, the word count and "next"
+    next_document: bool = False  # "next scene": new document right below this one
+    inspector: bool = False  # per-document details panel (status, synopsis, ...)
+    compile: bool = False  # folder -> manuscript (.docx/.md/.html)
+    draft_sets: bool = False  # named whole-project snapshots
+    todo_markers: bool = False  # [[...]] markers, collected per project
+    split_view: bool = False  # open another document beside this one
+    project_search: bool = False  # search scoped to the top-level folder
+    reading_mode: bool = False  # paginated, read-only view
+    timeline: bool = False  # documents laid out by in-story date
+    forward_only: bool = False  # optional: earlier paragraphs read-only
+
+
+@dataclass(frozen=True)
+class Role:
+    """What a document is within its kind. The first role is the default.
+
+    Documents whose role is not ``manuscript`` (notes about characters,
+    settings, research) stay out of the combined view's text flow, word
+    counts and compile.
+    """
+
+    id: str
+    label: str
+    manuscript: bool = True
 
 
 @dataclass(frozen=True)
@@ -51,6 +78,23 @@ class Kind:
     folder_label: str = "Folder"
     # Label for a document in this kind ("Essay", "Scene", "Entry").
     item_label: str = "Document"
+    # Roles a document can have; empty for kinds that do not use roles.
+    roles: tuple[Role, ...] = ()
+    # Optional per-document details kept in meta (validated in library.py):
+    # synopsis, pov, story_date, beats.
+    meta_fields: tuple[str, ...] = ()
+    # A shape for each status, so status never depends on colour.
+    status_symbols: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def default_role(self) -> str | None:
+        return self.roles[0].id if self.roles else None
+
+    def role(self, role_id: str | None) -> Role | None:
+        return next((r for r in self.roles if r.id == role_id), None)
+
+    def manuscript_roles(self) -> set[str]:
+        return {r.id for r in self.roles if r.manuscript}
 
     @property
     def capture_allowed(self) -> bool:
@@ -67,6 +111,9 @@ class Kind:
         data = asdict(self)
         data["extensions"] = list(self.extensions)
         data["statuses"] = list(self.statuses)
+        data["roles"] = [asdict(r) for r in self.roles]
+        data["meta_fields"] = list(self.meta_fields)
+        data["default_role"] = self.default_role
         data["capture_allowed"] = self.capture_allowed
         data["sessions_allowed"] = self.sessions_allowed
         return data
@@ -242,7 +289,7 @@ register(
     Kind(
         id="fiction",
         label="Fiction",
-        extensions=("typography", "bold", "italic", "sectionBreak", "hardBreak"),
+        extensions=("typography", "bold", "italic", "sectionBreak", "hardBreak", "todoMarkers", "forwardOnly"),
         theme={
             "font_body": SERIF,
             "font_heading": SERIF,
@@ -254,7 +301,28 @@ register(
             "accent": "#2f5d7c",
             "accent_dark": "#8fbfdf",
         },
-        tools=Tools(session_timer=True, word_target=True, reentry="prominent"),
+        tools=Tools(
+            session_timer=True,
+            word_target=True,
+            reentry="prominent",
+            status=True,
+            combined_view=True,
+            draft_mode=True,
+            next_document=True,
+            inspector=True,
+            compile=True,
+            draft_sets=True,
+            todo_markers=True,
+            split_view=True,
+            project_search=True,
+            reading_mode=True,
+            timeline=True,
+            forward_only=True,
+        ),
+        statuses=("stub", "drafted", "revised", "done"),
+        status_symbols={"stub": "○", "drafted": "◔", "revised": "◑", "done": "●"},
+        roles=(Role("scene", "Scene", manuscript=True), Role("misc", "Misc note", manuscript=False)),
+        meta_fields=("synopsis", "pov", "story_date", "beats"),
         searchable=True,
         exportable=True,
         encrypted=False,

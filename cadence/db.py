@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import sqlite3
 from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
-MIGRATION_NAME = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
+# SQL files, or Python files defining ``upgrade(conn)`` for steps that need
+# the kinds registry. Each runs once, in order, in its own transaction.
+MIGRATION_NAME = re.compile(r"^(\d{4})_[a-z0-9_]+\.(sql|py)$")
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "cadence.sqlite3"
 
@@ -69,11 +72,13 @@ def migrate(conn: sqlite3.Connection) -> list[int]:
     for version, path in available_migrations():
         if version in done:
             continue
-        sql = path.read_text(encoding="utf-8")
         try:
             conn.execute("BEGIN IMMEDIATE")
-            for statement in split_sql(sql):
-                conn.execute(statement)
+            if path.suffix == ".py":
+                _python_migration(path)(conn)
+            else:
+                for statement in split_sql(path.read_text(encoding="utf-8")):
+                    conn.execute(statement)
             conn.execute(
                 "INSERT INTO schema_migrations (version, name, applied_at)"
                 " VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
@@ -85,6 +90,18 @@ def migrate(conn: sqlite3.Connection) -> list[int]:
             raise
         applied.append(version)
     return applied
+
+
+def _python_migration(path: Path):
+    spec = importlib.util.spec_from_file_location(f"cadence_migration_{path.stem}", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load migration {path.name}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    upgrade = getattr(module, "upgrade", None)
+    if not callable(upgrade):
+        raise RuntimeError(f"migration {path.name} has no upgrade(conn)")
+    return upgrade
 
 
 def split_sql(sql: str) -> list[str]:

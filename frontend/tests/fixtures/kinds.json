@@ -32,7 +32,19 @@
       "status": true,
       "word_count": true,
       "snapshots": "normal",
-      "reentry": "normal"
+      "reentry": "normal",
+      "combined_view": false,
+      "draft_mode": false,
+      "next_document": false,
+      "inspector": false,
+      "compile": false,
+      "draft_sets": false,
+      "todo_markers": false,
+      "split_view": false,
+      "project_search": false,
+      "reading_mode": false,
+      "timeline": false,
+      "forward_only": false
     },
     "searchable": true,
     "exportable": true,
@@ -49,6 +61,10 @@
     "placeholder": "",
     "folder_label": "Folder",
     "item_label": "Essay",
+    "roles": [],
+    "meta_fields": [],
+    "status_symbols": {},
+    "default_role": null,
     "capture_allowed": true,
     "sessions_allowed": true
   },
@@ -81,7 +97,19 @@
       "status": false,
       "word_count": true,
       "snapshots": "normal",
-      "reentry": "off"
+      "reentry": "off",
+      "combined_view": false,
+      "draft_mode": false,
+      "next_document": false,
+      "inspector": false,
+      "compile": false,
+      "draft_sets": false,
+      "todo_markers": false,
+      "split_view": false,
+      "project_search": false,
+      "reading_mode": false,
+      "timeline": false,
+      "forward_only": false
     },
     "searchable": true,
     "exportable": true,
@@ -93,6 +121,10 @@
     "placeholder": "",
     "folder_label": "Folder",
     "item_label": "Note",
+    "roles": [],
+    "meta_fields": [],
+    "status_symbols": {},
+    "default_role": null,
     "capture_allowed": true,
     "sessions_allowed": false
   },
@@ -124,7 +156,19 @@
       "status": false,
       "word_count": true,
       "snapshots": "prominent",
-      "reentry": "normal"
+      "reentry": "normal",
+      "combined_view": false,
+      "draft_mode": false,
+      "next_document": false,
+      "inspector": false,
+      "compile": false,
+      "draft_sets": false,
+      "todo_markers": false,
+      "split_view": false,
+      "project_search": false,
+      "reading_mode": false,
+      "timeline": false,
+      "forward_only": false
     },
     "searchable": true,
     "exportable": true,
@@ -136,6 +180,10 @@
     "placeholder": "",
     "folder_label": "Collection",
     "item_label": "Poem",
+    "roles": [],
+    "meta_fields": [],
+    "status_symbols": {},
+    "default_role": null,
     "capture_allowed": true,
     "sessions_allowed": true
   },
@@ -166,7 +214,19 @@
       "status": false,
       "word_count": false,
       "snapshots": "normal",
-      "reentry": "off"
+      "reentry": "off",
+      "combined_view": false,
+      "draft_mode": false,
+      "next_document": false,
+      "inspector": false,
+      "compile": false,
+      "draft_sets": false,
+      "todo_markers": false,
+      "split_view": false,
+      "project_search": false,
+      "reading_mode": false,
+      "timeline": false,
+      "forward_only": false
     },
     "searchable": false,
     "exportable": false,
@@ -178,6 +238,10 @@
     "placeholder": "",
     "folder_label": "Folder",
     "item_label": "Entry",
+    "roles": [],
+    "meta_fields": [],
+    "status_symbols": {},
+    "default_role": null,
     "capture_allowed": false,
     "sessions_allowed": false
   },
@@ -189,7 +253,9 @@
       "bold",
       "italic",
       "sectionBreak",
-      "hardBreak"
+      "hardBreak",
+      "todoMarkers",
+      "forwardOnly"
     ],
     "theme": {
       "font_body": "'Literata', 'Iowan Old Style', 'Charter', 'Georgia', serif",
@@ -206,21 +272,63 @@
       "research_pane": false,
       "session_timer": true,
       "word_target": true,
-      "status": false,
+      "status": true,
       "word_count": true,
       "snapshots": "normal",
-      "reentry": "prominent"
+      "reentry": "prominent",
+      "combined_view": true,
+      "draft_mode": true,
+      "next_document": true,
+      "inspector": true,
+      "compile": true,
+      "draft_sets": true,
+      "todo_markers": true,
+      "split_view": true,
+      "project_search": true,
+      "reading_mode": true,
+      "timeline": true,
+      "forward_only": true
     },
     "searchable": true,
     "exportable": true,
     "encrypted": false,
     "folders_enabled": true,
     "list_view": "ordered",
-    "statuses": [],
+    "statuses": [
+      "stub",
+      "drafted",
+      "revised",
+      "done"
+    ],
     "title_mode": "required",
     "placeholder": "",
     "folder_label": "Project",
     "item_label": "Scene",
+    "roles": [
+      {
+        "id": "scene",
+        "label": "Scene",
+        "manuscript": true
+      },
+      {
+        "id": "misc",
+        "label": "Misc note",
+        "manuscript": false
+      }
+    ],
+    "meta_fields": [
+      "synopsis",
+      "pov",
+      "story_date",
+      "beats"
+    ],
+    "status_symbols": {
+      "stub": "○",
+      "drafted": "◔",
+      "revised": "◑",
+      "done": "●"
+    },
+    "default_role": "scene",
     "capture_allowed": true,
     "sessions_allowed": true
   }

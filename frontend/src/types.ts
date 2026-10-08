@@ -9,6 +9,30 @@ export interface KindTools {
   word_count: boolean;
   snapshots: Prominence;
   reentry: Prominence;
+  combined_view: boolean;
+  draft_mode: boolean;
+  next_document: boolean;
+  inspector: boolean;
+  compile: boolean;
+  draft_sets: boolean;
+  todo_markers: boolean;
+  split_view: boolean;
+  project_search: boolean;
+  reading_mode: boolean;
+  timeline: boolean;
+  forward_only: boolean;
+}
+
+export interface RoleDef {
+  id: string;
+  label: string;
+  /** In the manuscript flow, word counts and compile. */
+  manuscript: boolean;
+}
+
+export interface Beat {
+  text: string;
+  done: boolean;
 }
 
 export interface KindDef {
@@ -29,6 +53,10 @@ export interface KindDef {
   item_label: string;
   capture_allowed: boolean;
   sessions_allowed: boolean;
+  roles: RoleDef[];
+  default_role: string | null;
+  meta_fields: string[];
+  status_symbols: Record<string, string>;
 }
 
 export interface Folder {
@@ -57,6 +85,10 @@ export interface DocSummary {
   deleted_at?: string | null;
   excerpt?: string;
   words?: number;
+  role: string | null;
+  synopsis?: string | null;
+  pov?: string | null;
+  story_date?: string | null;
 }
 
 export interface DocFull extends DocSummary {
@@ -112,6 +144,7 @@ export interface SearchHit {
   snippet: string;
   folder_path: string[];
   folder_id: number | null;
+  role?: string | null;
 }
 
 export type PMNode = {

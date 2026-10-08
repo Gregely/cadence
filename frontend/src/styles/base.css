@@ -1617,3 +1617,123 @@ button.crumb {
 .clip-page h1 {
   font-size: 1.3rem;
 }
+
+/* ------------------------------------------------------------ combined folder view */
+
+.combined {
+  max-width: calc(var(--k-measure, 38rem) + 3rem);
+  margin: 0 auto;
+  padding: 7vh 1.5rem 55vh;
+  overflow-anchor: auto;
+}
+
+.combined-title {
+  font-family: var(--k-font-heading, Georgia, serif);
+  font-size: 1.7rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem;
+}
+
+.combined .folder-heading {
+  font-family: var(--k-font-heading, Georgia, serif);
+  font-weight: 600;
+  margin: 2.5rem 0 1rem;
+}
+
+.combined h2.folder-heading {
+  font-size: 1.35rem;
+}
+
+.combined h3.folder-heading,
+.combined h4.folder-heading {
+  font-size: 1.12rem;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.linkish:hover {
+  text-decoration: underline;
+  background: none;
+}
+
+.combined-doc {
+  margin: 0 0 1.5rem;
+}
+
+.combined-doc .doc-heading {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 0.4rem;
+}
+
+.combined-doc.active .doc-heading {
+  color: var(--muted);
+}
+
+[data-theme='eink'] .combined-doc.active .doc-heading {
+  font-weight: 700;
+}
+
+.combined-doc .prose {
+  min-height: 1.5em;
+}
+
+@media (max-width: 760px) {
+  /* A folder view's path is long; on a phone show only where you are. */
+  .crumbs.view-crumbs > :not(:last-child) {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------ draft mode */
+
+.draft-controls {
+  display: none;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.draft-mode .draft-controls {
+  display: inline-flex;
+}
+
+.draft-mode .sidebar,
+.draft-mode .scrim,
+.draft-mode .side-pane,
+.draft-mode .topbar,
+.draft-mode .reentry,
+.draft-mode .prompt-bar,
+.draft-mode .combined .doc-heading,
+.draft-mode .combined .folder-heading,
+.draft-mode .combined-title {
+  display: none !important;
+}
+
+.layout.draft-mode {
+  grid-template-columns: 0 minmax(0, 1fr) 0 !important;
+}
+
+.layout.mobile.draft-mode {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.draft-mode .statusbar .save-state,
+.draft-mode .statusbar .timer {
+  visibility: hidden;
+}
+
+.draft-mode .page,
+.draft-mode .combined {
+  padding-top: 10vh;
+}

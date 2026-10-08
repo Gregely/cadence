@@ -23,6 +23,8 @@ export interface SidebarHost {
   exportFolder?(node: FolderNode): void;
   exportDocument?(doc: DocSummary): void;
   openStream(): void;
+  /** Kinds with tools.combined_view: show every document in the folder. */
+  openFolder?(folderId: number): unknown;
   openKindSwitcher(anchor: HTMLElement): void;
   openQuickOpen(): void;
   openInbox(): void;
@@ -50,6 +52,7 @@ export class Sidebar {
   private tree!: Tree;
   root!: Root;
   private currentId: number | null = null;
+  private currentFolder: number | null = null;
   private collapsed = new Set<number>();
   private focusKey: string | null = null;
   private dragging: Node | null = null;
@@ -111,6 +114,16 @@ export class Sidebar {
     this.currentId = id;
     for (const row of this.body.querySelectorAll<HTMLElement>('[data-doc]')) {
       const on = Number(row.dataset.doc) === id;
+      row.classList.toggle('current', on);
+      if (on) row.setAttribute('aria-current', 'true');
+      else row.removeAttribute('aria-current');
+    }
+  }
+
+  setCurrentFolder(id: number | null): void {
+    this.currentFolder = id;
+    for (const row of this.body.querySelectorAll<HTMLElement>('.row.folder')) {
+      const on = Number(row.dataset.folder) === id;
       row.classList.toggle('current', on);
       if (on) row.setAttribute('aria-current', 'true');
       else row.removeAttribute('aria-current');
@@ -215,8 +228,12 @@ export class Sidebar {
       this.focusKey = `f${node.id}`;
       this.render();
     };
+    const opensView = this.kind.tools.combined_view && !!this.host.openFolder;
+    const current = opensView && node.id === this.currentFolder;
+    const twisty = h('span', { class: 'twisty', 'aria-hidden': 'true' }, open ? '▾' : '▸');
     const row = h('div', {
-      class: 'row folder',
+      class: `row folder${current ? ' current' : ''}`,
+      'aria-current': current ? 'true' : undefined,
       role: 'treeitem',
       tabindex: '-1',
       'aria-expanded': String(open),
@@ -225,15 +242,18 @@ export class Sidebar {
       dataset: { key: `f${node.id}`, folder: String(node.id) },
       style: `--level:${level}`,
     },
-    h('span', { class: 'twisty', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+    twisty,
     h('span', { class: 'label' }, node.folder.name),
     words !== null && words > 0 ? h('span', { class: 'meta' }, formatCount(words)) : null,
     this.moreButton(() => this.folderMenu(node)));
     row.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.more')) return;
-      toggle();
+      // In a combined-view kind the folder opens; its arrow still folds it.
+      if (opensView && e.target !== twisty) this.host.openFolder!(node.id);
+      else toggle();
     });
     (row as HTMLElement & { _toggle?: () => void })._toggle = toggle;
+    (row as HTMLElement & { _open?: () => void })._open = opensView ? () => this.host.openFolder!(node.id) : toggle;
     this.wireDrag(row, node);
     return row;
   }
@@ -298,6 +318,7 @@ export class Sidebar {
   private folderMenu(node: FolderNode): (MenuItem | null)[] {
     const k = this.kind;
     return [
+      k.tools.combined_view && this.host.openFolder ? { label: 'Open all', hint: 'Enter', run: () => this.host.openFolder!(node.id) } : null,
       { label: `New ${k.item_label.toLowerCase()} here`, run: () => this.host.newDocument(node.id) },
       { label: `New ${k.folder_label.toLowerCase()} inside`, run: () => this.host.newFolder(node.id), disabled: node.depth >= 4 },
       { label: 'Rename…', hint: 'F2', run: () => this.host.renameFolder(node) },
@@ -386,7 +407,7 @@ export class Sidebar {
       case 'Enter':
       case ' ':
         e.preventDefault();
-        if (node.type === 'folder') (el as HTMLElement & { _toggle?: () => void })._toggle?.();
+        if (node.type === 'folder') (el as HTMLElement & { _open?: () => void })._open?.();
         else this.host.openDocument(node.id);
         break;
       case 'F2':

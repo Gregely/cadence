@@ -104,6 +104,7 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
         conn = open_db(db_path)
         try:
             library.purge_expired(conn)
+            library.fill_role_defaults(conn)
             library.fts_rebuild(conn)
         finally:
             conn.close()
@@ -242,6 +243,7 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
             status=p.get("status"),
             meta=p.get("meta"),
             index=opt_int(p, "index"),
+            role=p.get("role"),
         )
 
     @app.get("/api/documents/{doc_id}")
@@ -384,9 +386,10 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
         kind: str | None = None,
         all_kinds: bool = False,
         limit: int = Query(30, ge=1, le=100),
+        folder_id: int | None = None,
         conn: sqlite3.Connection = Db,
     ):
-        return search.search(conn, q, kind_id=kind, all_kinds=all_kinds, limit=limit)
+        return search.search(conn, q, kind_id=kind, all_kinds=all_kinds, limit=limit, folder_id=folder_id)
 
     # ------------------------------------------------------------ vaults (encrypted kinds)
 

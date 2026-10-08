@@ -8,6 +8,7 @@ changes behind.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
@@ -15,7 +16,7 @@ from typing import Any, Iterator
 
 from . import clock, content
 from .errors import Conflict, Forbidden, Invalid, NotFound
-from .kinds import MAX_FOLDER_DEPTH, Kind, get_kind, searchable_kind_ids
+from .kinds import MAX_FOLDER_DEPTH, Kind, all_kinds, get_kind, searchable_kind_ids
 
 TRASH_DAYS = 30
 MAX_NAME = 200
@@ -273,7 +274,7 @@ def _renumber(conn: sqlite3.Connection, table: str, kind_id: str, parent: int | 
 
 DOC_LIST_COLUMNS = (
     "id, kind, folder_id, sort_order, title, status, meta_json, created_at, updated_at,"
-    " last_opened_at, deleted_at, plain_text"
+    " last_opened_at, deleted_at, plain_text, role"
 )
 
 
@@ -302,12 +303,45 @@ def doc_summary(row: sqlite3.Row) -> dict:
         "updated_at": row["updated_at"],
         "last_opened_at": row["last_opened_at"],
         "deleted_at": row["deleted_at"],
+        "role": doc_role(kind, row["role"] if "role" in keys else None),
     }
     if not encrypted:
         excerpt = " ".join((text or "")[:240].split())
         out["excerpt"] = excerpt[:160]
         out["words"] = content.word_count(text or "")
+    if kind:
+        # Optional details the kind declares, shown in lists (stubs, timeline).
+        for name in ("synopsis", "pov", "story_date"):
+            if name in kind.meta_fields:
+                out[name] = meta.get(name)
     return out
+
+
+def doc_role(kind: Kind | None, stored: str | None) -> str | None:
+    """The stored role, or the kind's default (also for rows not yet migrated)."""
+    if kind is None or not kind.roles:
+        return None
+    return stored if kind.role(stored) else kind.default_role
+
+
+def fill_role_defaults(conn: sqlite3.Connection) -> None:
+    """Give documents without a role their kind's default. Idempotent."""
+    with tx(conn):
+        for kind in all_kinds():
+            if kind.default_role:
+                conn.execute(
+                    "UPDATE documents SET role = ? WHERE kind = ? AND role IS NULL", (kind.default_role, kind.id)
+                )
+
+
+def _check_role(kind: Kind, role: Any) -> str | None:
+    if role in (None, ""):
+        return kind.default_role
+    if not kind.roles:
+        raise Invalid(f"{kind.label} documents have no roles")
+    if not isinstance(role, str) or kind.role(role) is None:
+        raise Invalid(f"not a valid role for {kind.label}")
+    return role
 
 
 def doc_full(row: sqlite3.Row) -> dict:
@@ -361,6 +395,11 @@ def _prepare_meta(kind: Kind, meta: Any, existing: dict | None = None) -> str:
             merged.pop(key, None)
         else:
             merged[key] = value
+    for name in kind.meta_fields:
+        if name in meta and meta[name] is not None:
+            merged[name] = META_FIELDS[name](meta[name])
+            if merged[name] in ("", []):
+                merged.pop(name)
     if "word_target" in merged:
         wt = merged["word_target"]
         if not isinstance(wt, int) or wt < 0 or wt > 10_000_000:
@@ -371,6 +410,53 @@ def _prepare_meta(kind: Kind, meta: Any, existing: dict | None = None) -> str:
     if len(raw) > 64 * 1024:
         raise Invalid("meta is too large")
     return raw
+
+
+def _one_line(limit: int, what: str):
+    def check(value: Any) -> str:
+        if not isinstance(value, str):
+            raise Invalid(f"{what} must be text")
+        value = " ".join(value.split())
+        if len(value) > limit:
+            raise Invalid(f"{what} is too long")
+        return value
+
+    return check
+
+
+STORY_DATE = re.compile(r"^-?\d{1,6}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3]):[0-5]\d)?$")
+
+
+def _story_date(value: Any) -> str:
+    if not isinstance(value, str):
+        raise Invalid("story date must be text")
+    value = value.strip()
+    if value and not STORY_DATE.match(value):
+        raise Invalid("story date must look like 1888-03-14 (a time may follow as T21:30)")
+    return value
+
+
+def _beats(value: Any) -> list:
+    if not isinstance(value, list) or len(value) > 100:
+        raise Invalid("beats must be a list of at most 100 items")
+    out = []
+    for item in value:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            raise Invalid("each beat needs text")
+        text = " ".join(item["text"].split())
+        if len(text) > 200:
+            raise Invalid("a beat is too long")
+        out.append({"text": text, "done": bool(item.get("done"))})
+    return out
+
+
+# Validators for the optional per-document details a kind may declare.
+META_FIELDS = {
+    "synopsis": _one_line(300, "synopsis"),
+    "pov": _one_line(100, "point of view"),
+    "story_date": _story_date,
+    "beats": _beats,
+}
 
 
 def _check_status(kind: Kind, status: Any) -> str | None:
@@ -400,6 +486,7 @@ def create_document(
     status: str | None = None,
     meta: dict | None = None,
     index: int | None = None,
+    role: str | None = None,
 ) -> dict:
     kind = require_kind(kind_id)
     if folder_id is not None and not kind.folders_enabled:
@@ -408,6 +495,7 @@ def create_document(
     title = _check_title(kind, title)
     status = _check_status(kind, status)
     meta_raw = _prepare_meta(kind, meta)
+    role = _check_role(kind, role)
     with tx(conn):
         _check_parent(conn, kind, folder_id)
         if kind.encrypted and not conn.execute("SELECT 1 FROM vaults WHERE kind = ?", (kind.id,)).fetchone():
@@ -417,8 +505,8 @@ def create_document(
             title = generated_title(kind, ts)
         cur = conn.execute(
             "INSERT INTO documents (kind, folder_id, sort_order, title, content_json, plain_text,"
-            " status, meta_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
-            (kind.id, folder_id, title or "", stored_content, stored_text, status, meta_raw, ts, ts),
+            " status, meta_json, created_at, updated_at, role) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (kind.id, folder_id, title or "", stored_content, stored_text, status, meta_raw, ts, ts, role),
         )
         doc_id = cur.lastrowid
         _place(conn, "documents", kind.id, folder_id, doc_id, index)
@@ -426,7 +514,7 @@ def create_document(
         return doc_full(doc_row(conn, doc_id))
 
 
-UPDATABLE = {"title", "content_json", "plain_text", "status", "meta", "if_updated_at"}
+UPDATABLE = {"title", "content_json", "plain_text", "status", "meta", "if_updated_at", "role"}
 
 
 def update_document(conn: sqlite3.Connection, doc_id: int, changes: dict) -> dict:
@@ -457,6 +545,10 @@ def update_document(conn: sqlite3.Connection, doc_id: int, changes: dict) -> dic
             sets["status"] = _check_status(kind, changes["status"])
         if "meta" in changes:
             sets["meta_json"] = _prepare_meta(kind, changes["meta"], json.loads(row["meta_json"] or "{}"))
+        if "role" in changes:
+            if not kind.roles:
+                raise Invalid("unknown fields in the request")
+            sets["role"] = _check_role(kind, changes["role"])
         if sets:
             # Cursor-only changes do not count as edits.
             meta_only_cursor = set(sets) == {"meta_json"} and set(changes.get("meta") or {}) <= {"cursor"}
