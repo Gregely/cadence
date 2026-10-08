@@ -590,6 +590,16 @@ step('boox-test: 5,000 words, load and keystroke latency', async () => {
 });
 
 step('PWA: manifest and service worker', async () => {
+  // Content types come from the app, never from the OS (a Windows registry
+  // mapping .js to text/plain once left the page blank).
+  const type = async (path) => ((await fetch(base + path)).headers.get('content-type') || '').split(';')[0];
+  const index = await (await fetch(`${base}/`)).text();
+  const js = index.match(/src="(\/assets\/[^"]+\.js)"/)[1];
+  const css = index.match(/href="(\/assets\/[^"]+\.css)"/)[1];
+  for (const [path, want] of [[js, 'text/javascript'], [css, 'text/css'], ['/manifest.webmanifest', 'application/manifest+json'], ['/sw.js', 'text/javascript']]) {
+    const got = await type(path);
+    check(got === want, `${path} served as ${want} (got ${got})`);
+  }
   const manifest = await (await fetch(`${base}/manifest.webmanifest`)).json();
   check(manifest.icons.some((i) => i.sizes === '512x512'), 'manifest has a 512px icon');
   const sw = await (await fetch(`${base}/sw.js`)).text();

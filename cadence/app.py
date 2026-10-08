@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import mimetypes
 import os
 import sqlite3
 from contextlib import asynccontextmanager
@@ -29,6 +30,40 @@ CSP = (
     "manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; "
     "frame-ancestors 'none'; form-action 'self'"
 )
+
+# Content types for the files the web app is built from. Python's mimetypes
+# reads the Windows registry, where .js is sometimes registered as text/plain;
+# browsers then refuse to run the module script and the page stays blank.
+# These are registered over whatever the OS says, and the frontend route also
+# looks them up here directly, so the app never depends on the OS setting.
+STATIC_TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
+
+
+def register_static_types() -> None:
+    """Override the OS (registry) mappings for the types the app serves."""
+    for ext, media in STATIC_TYPES.items():
+        mimetypes.add_type(media, ext)
+
+
+def static_media_type(path: Path) -> str | None:
+    media = STATIC_TYPES.get(path.suffix.lower())
+    if media:
+        return media
+    guessed, _ = mimetypes.guess_type(path.name)
+    return guessed
+
 
 TAILNET = ipaddress.ip_network("100.64.0.0/10")
 TAILNET6 = ipaddress.ip_network("fd7a:115c:a1e0::/48")
@@ -59,6 +94,7 @@ def host_allowed(host: str, extra: list[str]) -> bool:
 
 
 def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.PathLike | None = None) -> FastAPI:
+    register_static_types()
     db_path = Path(db_path or default_db_path())
     static = Path(static_dir or os.environ.get("CADENCE_STATIC") or DEFAULT_STATIC)
     extra_hosts = [h for h in os.environ.get("CADENCE_ALLOWED_HOSTS", "").split(",") if h]
@@ -474,12 +510,11 @@ def create_app(db_path: str | os.PathLike | None = None, static_dir: str | os.Pa
             except ValueError:
                 return JSONResponse({"detail": "not found"}, status_code=404)
             if candidate.is_file():
-                media = "application/manifest+json" if candidate.suffix == ".webmanifest" else None
-                return FileResponse(candidate, media_type=media)
+                return FileResponse(candidate, media_type=static_media_type(candidate))
             if path.startswith("assets/"):
                 return JSONResponse({"detail": "not found"}, status_code=404)
         if index.is_file():
-            return FileResponse(index)
+            return FileResponse(index, media_type=STATIC_TYPES[".html"])
         return JSONResponse(
             {"detail": "frontend not built: run `npm run build` in frontend/"}, status_code=503
         )

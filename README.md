@@ -25,8 +25,9 @@ of the way when you don't.
 7. [Developing](#developing)
 8. [Using Cadence](#using-cadence)
 9. [Configuration](#configuration)
-10. [Adding a kind](#adding-a-kind)
-11. [Design decisions](#design-decisions)
+10. [Troubleshooting](#troubleshooting)
+11. [Adding a kind](#adding-a-kind)
+12. [Design decisions](#design-decisions)
 
 ---
 
@@ -295,6 +296,28 @@ address filled in; add the author and page and save.
 | `CADENCE_STATIC` | `--static` | `frontend/dist` |
 | `CADENCE_ALLOWED_HOSTS` | | extra host names to answer to, comma separated (`*.example.lan` allowed) |
 | `CADENCE_BACKUP_DIR` | `--dest` (backup) | `backups/` in the project |
+
+## Troubleshooting
+
+### Blank page on Windows
+
+**Symptom:** the browser tab shows the title "Cadence" and the icon, but the
+page stays empty. The browser's developer console reports that a module script
+was refused because its MIME type is `text/plain`.
+
+**Cause:** Python's `mimetypes` module takes file types from the Windows
+registry. On some machines `.js` is registered there as `text/plain` (an
+editor or another program changed `HKEY_CLASSES_ROOT\.js` → `Content Type`).
+The server then sent the app's JavaScript as plain text, and browsers will not
+run a module script with that type.
+
+**Status:** fixed. Cadence now sets the types of everything it serves
+(`.js`/`.mjs` as `text/javascript`, `.css`, `.json`, `.webmanifest`, `.svg`,
+`.woff2`, `.png`, `.ico`, `.html`) itself and no longer depends on the
+registry; `tests/test_static.py` simulates the broken registry. If you see a
+blank page after updating, rebuild the frontend (`npm run build` in
+`frontend`), restart Cadence, and reload the page with Ctrl+F5 so the browser
+does not reuse an old copy. You do not need to change the registry.
 
 ## Adding a kind
 
