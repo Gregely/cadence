@@ -429,6 +429,124 @@ step('fiction: combined folder view, one editor per scene, draft mode', async ()
   await phone.close();
 });
 
+step('fiction: scenes, misc notes, stubs, counts, inspector, next scene', async () => {
+  const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+  const para = (t) => JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] });
+  const project = await post('/api/folders', { kind: 'fiction', name: 'Harbour' });
+  const chapter = await post('/api/folders', { kind: 'fiction', name: 'Chapter One', parent_id: project.id });
+  const s1 = await post('/api/documents', { kind: 'fiction', title: 'Arrival', folder_id: chapter.id, content_json: para('Mara came off the ferry in the rain.') });
+  const stub = await post('/api/documents', { kind: 'fiction', title: 'The storm', folder_id: chapter.id, status: 'stub', meta: { synopsis: 'The storm reaches the island.' } });
+  const s3 = await post('/api/documents', { kind: 'fiction', title: 'Morning', folder_id: chapter.id, content_json: para('By morning the sea was flat.') });
+  const misc = await post('/api/documents', { kind: 'fiction', title: 'Mara, character', role: 'misc', folder_id: chapter.id, content_json: para('Nineteen, stubborn, afraid of nothing but boats and more words here.') });
+  // A re-entry note on the first scene, to be carried into the next one.
+  const sess = await post('/api/sessions', { document_id: s1.id, words_start: 1 });
+  await post(`/api/sessions/${sess.id}/end`, { reentry_note: 'Next: the letter from the mainland' });
+
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  guard(page, 'fiction-core');
+  await page.goto(`${base}/f/${chapter.id}`);
+  await page.waitForSelector('.combined-doc');
+  await page.waitForTimeout(300);
+  check(await page.locator('.combined .scene-break').count() === 2, 'scene-break separators between the three scenes');
+  check((await page.locator('.combined .scene-break').first().innerText()).trim() === '#', 'scene breaks are marked #');
+  check((await page.locator('.stub-block').innerText()).includes('The storm reaches the island.'), 'stub shows its synopsis');
+  check(await page.locator('.notes-strip').count() === 1 && !(await page.locator('.notes-strip').evaluate((d) => d.open)), 'misc notes in a collapsed strip');
+  check(!(await page.locator('.combined-doc').allInnerTexts()).join(' ').includes('stubborn'), 'misc note text is not in the manuscript flow');
+  const expected = 8 + 6; // words in the two written scenes
+  check((await page.locator('.word-count').innerText()).startsWith(`${expected} words`), `word count covers scenes only (${await page.locator('.word-count').innerText()})`);
+  // Library: scenes numbered, the misc note not; folder total without misc.
+  const nums = await page.locator(`.row.doc[data-doc] .num`).allInnerTexts();
+  check(nums.slice(-3).join(' ') === '1. 2. 3.', `scenes numbered 1-3 (${nums.slice(-3)})`);
+  check(await page.locator(`.row.doc[data-doc="${misc.id}"] .num`).count() === 0, 'misc note not numbered');
+  check((await page.locator(`.row.folder[data-folder="${chapter.id}"] .meta`).innerText()) === String(expected), 'chapter total counts scenes only');
+  check(await page.locator(`.row.doc[data-doc="${stub.id}"]`).evaluate((r) => r.classList.contains('stub')), 'stub marked in the library');
+  await page.screenshot({ path: join(out, 'fiction-chapter.png') });
+
+  // Write into the stub.
+  await page.click('.stub-block');
+  await page.waitForFunction((id) => document.activeElement?.closest('.combined-doc')?.getAttribute('data-doc') === String(id), stub.id);
+  await page.keyboard.type('The wind came first.');
+  for (let i = 0; i < 40 && !(await api(`/api/documents/${stub.id}`)).plain_text; i++) await page.waitForTimeout(100);
+  check((await api(`/api/documents/${stub.id}`)).plain_text === 'The wind came first.', 'clicking a stub opens it for writing');
+
+  // Inspector: hidden until asked for.
+  check(!(await page.locator('.inspector').count()), 'details are hidden by default');
+  await page.click('.topbar button:has-text("Details")');
+  await page.waitForSelector('.inspector .status-field');
+  await page.check('.status-field input[value="drafted"]');
+  await page.waitForTimeout(300);
+  check((await api(`/api/documents/${stub.id}`)).status === 'drafted', 'status set from the details pane');
+  check((await page.locator(`.row.doc[data-doc="${stub.id}"] .status-symbol`).innerText()) === '◧', 'status shown as a shape in the library');
+  const date = page.locator('.inspector [data-field="story_date"] input');
+  await date.fill('next Tuesday');
+  await date.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.inspector .lock-status')?.textContent?.includes('story date'));
+  await date.fill('1888-03-14');
+  await date.press('Enter');
+  await page.fill('.inspector [data-field="pov"] input', 'Mara');
+  await page.press('.inspector [data-field="pov"] input', 'Enter');
+  await page.fill('.inspector [data-field="word_target"] input', '20');
+  await page.press('.inspector [data-field="word_target"] input', 'Enter');
+  await page.waitForTimeout(500);
+  const meta = (await api(`/api/documents/${stub.id}`)).meta;
+  check(meta.story_date === '1888-03-14' && meta.pov === 'Mara' && meta.word_target === 20, `details saved (${JSON.stringify(meta)})`);
+  check(await page.locator('.target-bar').isVisible(), 'progress bar shown once a target is set');
+  await page.screenshot({ path: join(out, 'fiction-inspector.png') });
+  // Writing after a metadata change still saves (no false conflict).
+  await page.locator(`.combined-doc[data-doc="${stub.id}"] .ProseMirror`).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' Then rain.');
+  for (let i = 0; i < 40 && !(await api(`/api/documents/${stub.id}`)).plain_text.endsWith('rain.'); i++) await page.waitForTimeout(100);
+  check((await api(`/api/documents/${stub.id}`)).plain_text.endsWith('Then rain.'), 'typing after a details change saves without a conflict');
+
+  // Next scene, right below the first one, with the re-entry note carried over.
+  await page.locator(`.combined-doc[data-doc="${s1.id}"] .ProseMirror`).click();
+  await page.keyboard.press('Control+Shift+Enter');
+  await page.waitForSelector('.reentry:not([hidden])');
+  check((await page.locator('.reentry').innerText()).includes('the letter from the mainland'), 'next scene shows the re-entry note');
+  await page.keyboard.type('A letter arrives.');
+  await page.waitForTimeout(1500);
+  const tree = await api('/api/kinds/fiction/tree');
+  const order = tree.documents.filter((d) => d.folder_id === chapter.id).sort((a, b) => a.sort_order - b.sort_order).map((d) => d.title || d.excerpt);
+  check(order[0] === 'Arrival' && order[1] === 'A letter arrives.' && order[2] === 'The storm', `next scene created right below (${order})`);
+
+  // A misc note made a scene joins the flow; and back.
+  await page.locator(`.combined-doc[data-doc="${s3.id}"] .ProseMirror`).click();
+  await page.waitForTimeout(200);
+  await page.selectOption('.inspector [data-field="role"] select', 'misc');
+  await page.waitForFunction((id) => !document.querySelector(`.combined-doc[data-doc="${id}"]`), s3.id);
+  check(await page.locator('.notes-strip li').count() === 2, 'a scene made misc moves into the notes strip');
+
+  // Counts can be hidden.
+  await page.click('.sidebar-foot button:has-text("Settings")');
+  await page.click('.menu button:has-text("Word counts in library")');
+  await page.waitForTimeout(300);
+  check(await page.locator('.row .meta').count() === 0, 'library word counts can be hidden');
+  await page.click('.sidebar-foot button:has-text("Settings")');
+  await page.click('.menu button:has-text("Word counts in library")');
+  // Draft mode keeps the next-scene button.
+  await page.keyboard.press('Control+Shift+d');
+  check(await page.locator('.draft-controls button:has-text("Next scene")').isVisible(), 'draft mode shows the next-scene button');
+  await page.keyboard.press('Control+Shift+d');
+  await ctx.close();
+
+  // Phone, e-ink, with details open.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await phone.newPage();
+  guard(p2, 'fiction-core-phone');
+  await p2.goto(`${base}/f/${chapter.id}?theme=eink`);
+  await p2.waitForSelector('.combined-doc');
+  await p2.screenshot({ path: join(out, 'phone-eink-chapter.png') });
+  await p2.locator('.combined-doc .ProseMirror').first().tap();
+  await p2.tap('.topbar button:has-text("Details")');
+  await p2.waitForSelector('.inspector .status-field');
+  const box = await p2.locator('.side-pane').boundingBox();
+  check(box && box.width >= 380, 'details fill the phone screen');
+  await p2.screenshot({ path: join(out, 'phone-eink-details.png') });
+  await phone.close();
+});
+
 step('research: clip, cite, footnote, search, reading notes, export', async () => {
   const essays = await api('/api/kinds/essay/tree');
   const essay = essays.documents.find((d) => d.title === 'On walking');

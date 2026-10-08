@@ -1,6 +1,7 @@
 import type { App } from '../app';
 import { diaryFeature } from './diary';
 import { exportFeature } from './exporting';
+import { manuscriptFeature } from './manuscript';
 import { researchFeature } from './research';
 import { snapshotsFeature } from './snapshots';
 
@@ -10,4 +11,5 @@ export function install(app: App): void {
   app.use(snapshotsFeature);
   app.use(exportFeature);
   app.use(researchFeature);
+  app.use(manuscriptFeature);
 }

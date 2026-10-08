@@ -1,7 +1,9 @@
 import { dayLabel, longDate, monthName, timeLabel } from '../lib/dates';
 import { clear, h } from '../lib/dom';
 import { store } from '../lib/storage';
+import { inManuscript, isStub, manuscriptWords, roleLabel, statusSymbol } from '../lib/roles';
 import { formatCount } from '../lib/text';
+import { settings } from '../settings';
 import {
   type DocNode, type DropPosition, type FolderNode, type Move, type Node, type Root,
   buildTree, docsInFolder, dropMove, flatten, groupByMonth, indent, moveDown, moveUp, outdent,
@@ -22,6 +24,9 @@ export interface SidebarHost {
   moveToDialog(node: Node): void;
   exportFolder?(node: FolderNode): void;
   exportDocument?(doc: DocSummary): void;
+  /** Extra menu items from optional tools (compile, draft sets, ...). */
+  folderMenuExtra?(node: FolderNode): (MenuItem | null)[];
+  docMenuExtra?(doc: DocSummary): (MenuItem | null)[];
   openStream(): void;
   /** Kinds with tools.combined_view: show every document in the folder. */
   openFolder?(folderId: number): unknown;
@@ -134,8 +139,43 @@ export class Sidebar {
   patchDoc(doc: DocSummary): void {
     const i = this.tree.documents.findIndex((d) => d.id === doc.id);
     if (i >= 0) this.tree.documents[i] = { ...this.tree.documents[i]!, ...doc };
-    const row = this.body.querySelector<HTMLElement>(`[data-doc="${doc.id}"] .label`);
-    if (row) row.textContent = docLabel(this.kind, this.tree.documents[i] ?? doc);
+    const merged = this.tree.documents[i] ?? doc;
+    const node = this.root.byDoc.get(doc.id);
+    if (node) node.doc = merged;
+    const label = this.body.querySelector<HTMLElement>(`[data-doc="${doc.id}"] .label`);
+    if (label) label.textContent = docLabel(this.kind, merged);
+    if (label && 'status' in doc && Object.keys(this.kind.status_symbols).length) {
+      const row = label.parentElement!;
+      row.querySelector(':scope > .status-symbol')?.remove();
+      const symbol = statusSymbol(this.kind, merged.status);
+      if (symbol) row.insertBefore(h('span', { class: 'status-symbol', title: merged.status!, 'aria-label': merged.status! }, symbol), label);
+    }
+    if (this.kind.list_view === 'ordered') this.patchCounts(merged);
+  }
+
+  /**
+   * Update word counts and the stub marker in place (no re-render, so an
+   * e-ink screen only repaints the numbers that changed).
+   */
+  private patchCounts(doc: DocSummary): void {
+    const row = this.body.querySelector<HTMLElement>(`[data-doc="${doc.id}"]`);
+    if (row && this.kind.roles.length) row.classList.toggle('stub', isStub(this.kind, doc));
+    if (!settings().libraryCounts || !inManuscript(this.kind, doc)) return;
+    const setMeta = (el: HTMLElement | null, words: number) => {
+      if (!el) return;
+      let meta = el.querySelector<HTMLElement>(':scope > .meta');
+      if (!meta && words > 0) {
+        meta = h('span', { class: 'meta' });
+        el.insertBefore(meta, el.querySelector(':scope > .more'));
+      }
+      if (meta && meta.textContent !== formatCount(words)) meta.textContent = words > 0 ? formatCount(words) : '';
+    };
+    setMeta(row, doc.words ?? 0);
+    let parent = doc.folder_id !== null ? this.root.byFolder.get(doc.folder_id) : undefined;
+    while (parent) {
+      setMeta(this.body.querySelector<HTMLElement>(`[data-folder="${parent.id}"]`), manuscriptWords(this.kind, docsInFolder(parent)));
+      parent = parent.parent !== null ? this.root.byFolder.get(parent.parent) : undefined;
+    }
   }
 
   focus(): void {
@@ -180,6 +220,17 @@ export class Sidebar {
   private renderTree(): void {
     const rows = flatten(this.root, this.collapsed);
     const numbered = this.kind.list_view === 'ordered';
+    // Numbers count manuscript documents only (fiction: scenes, not misc notes).
+    const numbers = new Map<number, number>();
+    if (numbered) {
+      const counters = new Map<number | null, number>();
+      for (const row of rows) {
+        if (row.node.type !== 'doc' || !inManuscript(this.kind, row.node.doc)) continue;
+        const n = (counters.get(row.node.parent) ?? 0) + 1;
+        counters.set(row.node.parent, n);
+        numbers.set(row.node.id, n);
+      }
+    }
     let lastDay = '';
     for (const row of rows) {
       const node = row.node;
@@ -193,7 +244,7 @@ export class Sidebar {
             lastDay = day;
           }
         }
-        this.body.appendChild(this.docRow(node, row.level, numbered ? row.index + 1 : null));
+        this.body.appendChild(this.docRow(node, row.level, numbered ? numbers.get(node.id) ?? null : null));
       }
     }
   }
@@ -220,7 +271,7 @@ export class Sidebar {
 
   private folderRow(node: FolderNode, level: number, numbered: boolean): HTMLElement {
     const open = !this.collapsed.has(node.id);
-    const words = numbered ? docsInFolder(node).reduce((n, d) => n + (d.words ?? 0), 0) : null;
+    const words = numbered && settings().libraryCounts ? manuscriptWords(this.kind, docsInFolder(node)) : null;
     const toggle = () => {
       if (open) this.collapsed.add(node.id);
       else this.collapsed.delete(node.id);
@@ -244,7 +295,7 @@ export class Sidebar {
     },
     twisty,
     h('span', { class: 'label' }, node.folder.name),
-    words !== null && words > 0 ? h('span', { class: 'meta' }, formatCount(words)) : null,
+    words !== null && words > 0 ? h('span', { class: 'meta', title: 'Words in the manuscript' }, formatCount(words)) : null,
     this.moreButton(() => this.folderMenu(node)));
     row.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.more')) return;
@@ -261,8 +312,12 @@ export class Sidebar {
   private docRow(node: DocNode, level: number, number: number | null, label?: string): HTMLElement {
     const d = node.doc;
     const current = d.id === this.currentId;
+    const k = this.kind;
+    const manuscript = inManuscript(k, d);
+    const symbol = statusSymbol(k, d.status);
+    const stub = k.roles.length > 0 && isStub(k, d);
     const row = h('div', {
-      class: `row doc${current ? ' current' : ''}`,
+      class: `row doc${current ? ' current' : ''}${manuscript ? '' : ' misc'}${stub ? ' stub' : ''}`,
       role: 'treeitem',
       tabindex: '-1',
       'aria-level': String(level + 1),
@@ -272,9 +327,12 @@ export class Sidebar {
       style: `--level:${level}`,
     },
     number !== null ? h('span', { class: 'num' }, `${number}.`) : null,
+    // Status as a shape (and its name for screen readers), never colour alone.
+    symbol ? h('span', { class: 'status-symbol', title: d.status!, 'aria-label': d.status! }, symbol) : null,
     h('span', { class: 'label' }, label ?? docLabel(this.kind, d)),
-    d.status ? h('span', { class: 'tag' }, d.status) : null,
-    this.kind.list_view === 'ordered' && d.words ? h('span', { class: 'meta' }, formatCount(d.words)) : null,
+    !manuscript ? h('span', { class: 'tag' }, roleLabel(k, d.role).toLowerCase()) : null,
+    d.status && !symbol ? h('span', { class: 'tag' }, d.status) : null,
+    this.kind.list_view === 'ordered' && manuscript && d.words && settings().libraryCounts ? h('span', { class: 'meta' }, formatCount(d.words)) : null,
     this.moreButton(() => this.docMenu(node)));
     row.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.more')) return;
@@ -324,6 +382,7 @@ export class Sidebar {
       { label: 'Rename…', hint: 'F2', run: () => this.host.renameFolder(node) },
       ...this.moveItems(node),
       this.host.exportFolder && k.exportable ? { label: 'Export as one document…', run: () => this.host.exportFolder!(node) } : null,
+      ...(this.host.folderMenuExtra?.(node) ?? []),
       { label: '', run: () => undefined, separator: true },
       { label: 'Move to trash', hint: 'Del', run: () => this.host.deleteFolder(node) },
     ];
@@ -336,6 +395,7 @@ export class Sidebar {
       k.title_mode !== 'generated' ? { label: 'Rename…', hint: 'F2', run: () => this.host.renameDocument(node.doc) } : null,
       ...this.moveItems(node),
       this.host.exportDocument && k.exportable ? { label: 'Export…', run: () => this.host.exportDocument!(node.doc) } : null,
+      ...(this.host.docMenuExtra?.(node.doc) ?? []),
       { label: '', run: () => undefined, separator: true },
       { label: 'Move to trash', hint: 'Del', run: () => this.host.deleteDocument(node.doc) },
     ];

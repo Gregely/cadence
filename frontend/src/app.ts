@@ -9,6 +9,7 @@ import { longDate } from './lib/dates';
 import { clear, h, isTypingTarget } from './lib/dom';
 import { clearPending, loadPending } from './lib/pending';
 import { store } from './lib/storage';
+import { inManuscript } from './lib/roles';
 import { formatCount, smarten } from './lib/text';
 import { type FolderNode, type Move, type Node, folderPath } from './lib/tree';
 import { Saver, type SaveState } from './saver';
@@ -47,6 +48,10 @@ export interface Feature {
   sidePane?(app: App): void;
   /** Called on every editor change. */
   onEdit?(app: App): void;
+  /** Extra buttons beside a note in the combined view's notes strip. */
+  noteActions?(app: App, doc: DocSummary): HTMLElement[];
+  folderMenu?(app: App, node: FolderNode): (MenuItem | null)[];
+  docMenu?(app: App, doc: DocSummary): (MenuItem | null)[];
 }
 
 const MOBILE = '(max-width: 760px)';
@@ -82,6 +87,11 @@ export class App implements SidebarHost, ScreenHost {
   private wordLabel: HTMLElement;
   private timerLabel: HTMLElement;
   private promptBar: HTMLElement;
+  private nextButton: HTMLButtonElement;
+  private draftNext: HTMLButtonElement;
+  private targetBar: HTMLElement;
+  /** A re-entry note carried into a new document from the one before it. */
+  private carried: { from: number; to: number } | null = null;
   /** Shown only in draft mode, beside the word count. */
   readonly draftControls: HTMLElement;
   readonly saver: Saver;
@@ -127,7 +137,10 @@ export class App implements SidebarHost, ScreenHost {
     });
     this.dateTitle = h('div', { class: 'doc-date', hidden: true });
     this.mount = h('div', { class: 'editor-mount' });
-    this.page = h('article', { class: 'page' }, this.dateTitle, this.titleInput, this.mount);
+    this.nextButton = h('button', {
+      type: 'button', class: 'quiet next-doc', hidden: true, onclick: () => void this.nextDocument(),
+    });
+    this.page = h('article', { class: 'page' }, this.dateTitle, this.titleInput, this.mount, this.nextButton);
     this.scroller = h('div', { class: 'writing', tabindex: '-1' }, this.page);
     this.scroller.addEventListener('mousedown', (e) => {
       // Clicking the margins below the text puts the cursor at the end.
@@ -140,12 +153,15 @@ export class App implements SidebarHost, ScreenHost {
     this.saveLabel = h('span', { class: 'save-state', role: 'status', 'aria-live': 'polite' });
     this.wordLabel = h('button', { type: 'button', class: 'word-count quiet', title: 'Hide word count', onclick: () => updateSettings({ wordCount: false }) });
     this.timerLabel = h('span', { class: 'timer' });
+    this.draftNext = h('button', { type: 'button', class: 'quiet', onclick: () => void this.nextDocument() }) as HTMLButtonElement;
+    this.targetBar = h('span', { class: 'target-bar', hidden: true, role: 'progressbar', 'aria-label': 'Word target' }, h('span', { class: 'target-fill' }));
     this.draftControls = h('span', { class: 'draft-controls' },
+      this.draftNext,
       h('button', {
         type: 'button', class: 'quiet draft-exit', title: 'Leave draft mode (Ctrl+Shift+D)', 'aria-label': 'Leave draft mode',
         onclick: () => this.toggleDraftMode(false),
       }, '×'));
-    const status = h('footer', { class: 'statusbar' }, this.saveLabel, h('span', { class: 'spacer' }), this.timerLabel, this.wordLabel, this.draftControls);
+    const status = h('footer', { class: 'statusbar' }, this.saveLabel, h('span', { class: 'spacer' }), this.timerLabel, this.targetBar, this.wordLabel, this.draftControls);
     this.promptBar = h('div', { class: 'prompt-bar', hidden: true });
     this.main = h('main', { class: 'main' }, this.topbar, this.reentry, this.scroller, this.screenHolder, status, this.promptBar);
     this.sidePaneSlot = h('div', { class: 'side-pane', hidden: true });
@@ -303,6 +319,11 @@ export class App implements SidebarHost, ScreenHost {
       style.setProperty(`--k-${key.replace(/_/g, '-')}`, value);
     }
     this.statusSelect.hidden = !kind.tools.status || kind.tools.inspector;
+    const nextLabel = `Next ${kind.item_label.toLowerCase()}`;
+    this.nextButton.textContent = `+ ${nextLabel}`;
+    this.nextButton.title = `${nextLabel}, right below this one (Ctrl+Shift+Enter)`;
+    this.draftNext.textContent = nextLabel;
+    this.draftNext.hidden = !kind.tools.next_document;
     this.el.classList.toggle('draft-mode', kind.tools.draft_mode && store.get(`cadence.draftMode.${kind.id}`) === '1');
     clear(this.statusSelect);
     this.statusSelect.appendChild(h('option', { value: '' }, 'No status'));
@@ -514,9 +535,60 @@ export class App implements SidebarHost, ScreenHost {
     for (const f of this.features) f.onDocument?.(this);
   }
 
+  /**
+   * "Next scene": a new document right below the current one, in the same
+   * folder, focused, with the current one's re-entry note shown above it.
+   */
+  async nextDocument(fromId: number | null = this.activeDocId()): Promise<void> {
+    const kind = this.kind;
+    if (!kind?.tools.next_document) return;
+    const from = fromId !== null ? this.tree.documents.find((d) => d.id === fromId) : undefined;
+    if (!from) {
+      await this.newDocument(this.sidebar.contextFolder());
+      return;
+    }
+    await this.flushDoc(from.id);
+    const previous = await api.openDocument(from.id).catch(() => null);
+    const created = await api.createDocument({
+      kind: kind.id,
+      folder_id: from.folder_id,
+      index: from.sort_order + 1,
+      content_json: await this.codec(kind).encode({ type: 'doc', content: [{ type: 'paragraph' }] }),
+    });
+    this.carried = { from: from.id, to: created.id };
+    const note = previous?.reentry_note ?? null;
+    if (this.view) {
+      const folderId = this.view.folder.id;
+      await this.refreshTree();
+      await this.openFolder(folderId, { push: false, focusDoc: created.id });
+      await this.view?.focusDoc(created.id, 'start');
+    } else {
+      await this.refreshTree();
+      await this.openDocument(created.id, { focus: false });
+      this.editor?.focusAt('start');
+    }
+    if (note) this.showReentry(note);
+  }
+
+  noteActions(doc: DocSummary): HTMLElement[] {
+    return this.features.flatMap((f) => f.noteActions?.(this, doc) ?? []);
+  }
+
+  folderMenuExtra(node: FolderNode): (MenuItem | null)[] {
+    return this.features.flatMap((f) => f.folderMenu?.(this, node) ?? []);
+  }
+
+  docMenuExtra(doc: DocSummary): (MenuItem | null)[] {
+    return this.features.flatMap((f) => f.docMenu?.(this, doc) ?? []);
+  }
+
   /** The document being written: the open one, or the focused one in a folder view. */
   activeDocId(): number | null {
     return this.view?.active?.id ?? this.doc?.id ?? null;
+  }
+
+  refreshWords(): void {
+    this.updateWords();
   }
 
   setWordLabel(text: string | null): void {
@@ -752,6 +824,7 @@ export class App implements SidebarHost, ScreenHost {
     this.dateTitle.textContent = k.title_mode === 'generated' ? longDate(d?.created_at ?? new Date().toISOString()) : '';
     this.statusSelect.value = d?.status ?? '';
     this.statusSelect.disabled = !d;
+    this.nextButton.hidden = !k.tools.next_document || !d || !inManuscript(k, d);
     this.fillCrumbs();
     this.fillReentry();
     this.updateWords();
@@ -771,8 +844,14 @@ export class App implements SidebarHost, ScreenHost {
     }
   }
 
-  private fillReentry(): void {
-    const note = this.doc?.reentry_note;
+  /** Show a re-entry note above the text (e.g. carried into a new scene). */
+  showReentry(note: string | null): void {
+    if (this.doc) this.doc.reentry_note = note;
+    this.fillReentry(note);
+  }
+
+  private fillReentry(override?: string | null): void {
+    const note = override !== undefined ? override : this.doc?.reentry_note;
     const mode = this.kind.tools.reentry;
     clear(this.reentry);
     if (!note || mode === 'off') {
@@ -799,6 +878,20 @@ export class App implements SidebarHost, ScreenHost {
     const words = this.editor.words();
     const target = this.kind.tools.word_target ? this.doc?.word_target : null;
     this.wordLabel.textContent = target ? `${formatCount(words)} / ${formatCount(target)} words` : `${formatCount(words)} words`;
+    this.renderTarget(words, target ?? null);
+  }
+
+  /** A quiet bar against a word target; only for kinds with an inspector, only when a target is set. */
+  renderTarget(words: number, target: number | null): void {
+    const on = !!target && this.kind?.tools.inspector && this.kind.tools.word_target && settings().wordCount;
+    this.targetBar.hidden = !on;
+    if (!on) return;
+    const pct = Math.min(100, Math.round((words / target!) * 100));
+    this.targetBar.setAttribute('aria-valuenow', String(pct));
+    this.targetBar.setAttribute('aria-valuemin', '0');
+    this.targetBar.setAttribute('aria-valuemax', '100');
+    this.targetBar.title = `${formatCount(words)} of ${formatCount(target!)} words`;
+    (this.targetBar.firstElementChild as HTMLElement).style.width = `${pct}%`;
   }
 
   showSaveState(state: SaveState, message?: string): void {
@@ -868,6 +961,8 @@ export class App implements SidebarHost, ScreenHost {
       if (this.doc?.id === docId) {
         this.doc.reentry_note = note;
       }
+      // Written just after "next scene": show it on the new scene too.
+      if (this.carried?.from === docId && this.activeDocId() === this.carried.to) this.showReentry(note);
     });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -1213,6 +1308,7 @@ export class App implements SidebarHost, ScreenHost {
       ['* * *', 'Section break on an empty line'],
       ['Ctrl+Shift+E', 'Research pane (essays)'],
       ['Ctrl+Shift+D', 'Draft mode: only the text (fiction)'],
+      ['Ctrl+Shift+Enter', 'Next scene, right below this one (fiction)'],
       ['Library: ↑ ↓ ← →', 'Move between items'],
       ['Library: Alt+Shift+↑ ↓', 'Move item up or down'],
       ['Library: Alt+Shift+→ ←', 'Indent or outdent'],
@@ -1250,6 +1346,9 @@ export class App implements SidebarHost, ScreenHost {
     } else if (mod && e.shiftKey && key === 'f') {
       e.preventDefault();
       this.toggleFocus();
+    } else if (mod && e.shiftKey && e.key === 'Enter' && this.kind?.tools.next_document) {
+      e.preventDefault();
+      void this.nextDocument();
     } else if (mod && e.shiftKey && !e.altKey && key === 'd' && this.kind?.tools.draft_mode) {
       e.preventDefault();
       this.toggleDraftMode();

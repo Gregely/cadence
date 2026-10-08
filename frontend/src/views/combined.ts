@@ -2,6 +2,7 @@ import { api } from '../api';
 import type { App } from '../app';
 import { clear, h } from '../lib/dom';
 import { store } from '../lib/storage';
+import { inManuscript, isStub, roleLabel } from '../lib/roles';
 import { formatCount } from '../lib/text';
 import type { FolderNode } from '../lib/tree';
 import type { SaveState } from '../saver';
@@ -42,6 +43,8 @@ export class CombinedView {
   active: DocPane | null = null;
   private observer: IntersectionObserver | null = null;
   private sections = new Map<number, HTMLElement>();
+  /** Documents whose editor is created when they scroll near. */
+  private lazy = new Set<number>();
   private wordTimer = 0;
   private openTimer = 0;
 
@@ -72,7 +75,7 @@ export class CombinedView {
         void this.panes.get(id)?.mount();
       }
     }, { root: this.scroller, rootMargin: '800px 0px' });
-    for (const section of this.sections.values()) this.observer.observe(section);
+    for (const id of this.lazy) this.observer.observe(this.sections.get(id)!);
     this.updateWords();
     if (focusDoc !== null && this.panes.has(focusDoc)) await this.focusDoc(focusDoc, 'cursor');
   }
@@ -85,11 +88,47 @@ export class CombinedView {
         h('button', { type: 'button', class: 'linkish', title: `Open ${sub.folder.name} on its own`, onclick: () => void this.app.openFolder(sub.id) }, sub.folder.name)));
       this.renderFolder(parent, sub, depth + 1);
     }
-    for (const d of node.docs) parent.appendChild(this.section(d.doc));
+    // Manuscript documents make the flow; the others (fiction: misc notes)
+    // wait in a collapsed strip at the end of their folder.
+    const flow = node.docs.filter((d) => inManuscript(this.kind, d.doc));
+    const notes = node.docs.filter((d) => !inManuscript(this.kind, d.doc));
+    flow.forEach((d, i) => {
+      if (i > 0 && this.kind.roles.length) parent.appendChild(h('div', { class: 'scene-break', role: 'separator', 'aria-label': 'Scene break' }, '#'));
+      parent.appendChild(this.section(d.doc));
+    });
+    if (notes.length) parent.appendChild(this.notesStrip(notes.map((n) => n.doc)));
+  }
+
+  private notesStrip(docs: DocSummary[]): HTMLElement {
+    const label = roleLabel(this.kind, docs[0]!.role) || 'Notes';
+    return h('details', { class: 'notes-strip' },
+      h('summary', null, `${label}s · ${docs.length}`),
+      h('ul', null, docs.map((d) => h('li', null,
+        h('button', { type: 'button', class: 'linkish', title: 'Open on its own', onclick: () => void this.app.openDocument(d.id) }, docLabel(this.kind, d)),
+        ...(this.app.noteActions?.(d) ?? [])))));
+  }
+
+  /** A scene with no text: a placeholder showing its synopsis, so gaps show. */
+  private stub(doc: DocSummary, bodyEl: HTMLElement, pane: DocPane): HTMLElement {
+    const open = () => {
+      stub.remove();
+      bodyEl.hidden = false;
+      void pane.mount('start').then(() => this.onFocus(pane));
+    };
+    const stub = h('div', {
+      class: 'stub-block', role: 'button', tabindex: '0', title: 'Start writing this scene',
+      onclick: open,
+      onkeydown: (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } },
+    },
+    h('span', { class: 'stub-mark' }, 'Not written yet'),
+    h('span', { class: 'stub-text' }, doc.synopsis || 'No synopsis. Click to write.'));
+    bodyEl.hidden = true;
+    return stub;
   }
 
   protected section(doc: DocSummary): HTMLElement {
-    const bodyEl = h('div', { class: 'doc-body', style: `min-height:${estimateHeight(doc.words ?? 0)}px` });
+    const stubbed = this.kind.roles.length > 0 && isStub(this.kind, doc);
+    const bodyEl = h('div', { class: 'doc-body', style: stubbed ? '' : `min-height:${estimateHeight(doc.words ?? 0)}px` });
     const section = h('section', { class: 'combined-doc', dataset: { doc: String(doc.id) } },
       h('div', { class: 'doc-heading' },
         h('button', { type: 'button', class: 'linkish', title: 'Open on its own', onclick: () => void this.app.openDocument(doc.id) },
@@ -109,7 +148,25 @@ export class CombinedView {
     }, doc, bodyEl);
     this.panes.set(doc.id, pane);
     this.sections.set(doc.id, section);
+    if (stubbed) {
+      section.classList.add('is-stub');
+      section.insertBefore(this.stub(doc, bodyEl, pane), bodyEl);
+    } else this.lazy.add(doc.id);
+    if (this.kind.tools.next_document && inManuscript(this.kind, doc)) {
+      section.appendChild(h('button', {
+        type: 'button', class: 'quiet next-doc', title: `New ${this.kind.item_label.toLowerCase()} below (Ctrl+Shift+Enter)`,
+        onclick: () => void this.app.nextDocument(doc.id),
+      }, `+ Next ${this.kind.item_label.toLowerCase()}`));
+    }
     return section;
+  }
+
+  /** Show a document's new synopsis on its stub (after an inspector edit). */
+  updateSummary(doc: DocSummary): void {
+    const pane = this.panes.get(doc.id);
+    if (pane) pane.summary = { ...pane.summary, ...doc };
+    const text = this.sections.get(doc.id)?.querySelector('.stub-text');
+    if (text) text.textContent = doc.synopsis || 'No synopsis. Click to write.';
   }
 
   /** Mount (if needed), scroll to and focus a document. */
@@ -117,6 +174,8 @@ export class CombinedView {
     const pane = this.panes.get(id);
     const section = this.sections.get(id);
     if (!pane || !section) return;
+    section.querySelector('.stub-block')?.remove();
+    section.querySelector<HTMLElement>('.doc-body')!.hidden = false;
     section.scrollIntoView({ block: 'start' });
     await pane.mount(where);
     this.onFocus(pane);
@@ -127,6 +186,7 @@ export class CombinedView {
     this.active = pane;
     for (const s of this.sections.values()) s.classList.toggle('active', s === this.sections.get(pane.id));
     this.app.sidebar.setCurrent(pane.id);
+    this.updateWords();
     rememberView({ folder: this.folder.id, doc: pane.id });
     // Mark it as the last-open document (quietly, once focus settles).
     window.clearTimeout(this.openTimer);
@@ -146,12 +206,14 @@ export class CombinedView {
     return n;
   }
 
-  protected inFlow(_doc: DocSummary): boolean {
-    return true;
+  protected inFlow(doc: DocSummary): boolean {
+    return inManuscript(this.kind, doc);
   }
 
   updateWords(): void {
     this.app.setWordLabel(`${formatCount(this.words())} words`);
+    const active = this.active;
+    this.app.renderTarget(active ? active.words() : 0, active?.summary.word_target ?? null);
   }
 
   private showState(): void {

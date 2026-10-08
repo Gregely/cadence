@@ -1737,3 +1737,191 @@ button.linkish:hover {
 .draft-mode .combined {
   padding-top: 10vh;
 }
+
+/* ------------------------------------------------------------ manuscript (fiction) */
+
+.row .status-symbol {
+  flex: none;
+  width: 1em;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.row.misc .label {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.inspector input[type='radio'],
+.inspector input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+[data-theme='eink'] .inspector input[type='radio'],
+[data-theme='eink'] .inspector input[type='checkbox'] {
+  accent-color: #000;
+}
+
+[data-theme='eink'] .row.misc .label {
+  color: #000;
+}
+
+.row.stub .label {
+  color: var(--faint);
+}
+
+.row.stub .label::after {
+  content: ' (empty)';
+  font-size: 0.75rem;
+}
+
+[data-theme='eink'] .row.stub .label {
+  color: #000;
+  text-decoration: underline dotted;
+}
+
+.combined .scene-break {
+  text-align: center;
+  margin: 1.2rem 0 1.6rem;
+  color: var(--muted);
+  letter-spacing: 0.3em;
+}
+
+.stub-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--faint);
+  cursor: pointer;
+  font-style: italic;
+}
+
+[data-theme='eink'] .stub-block {
+  border: 2px dashed #000;
+  color: #000;
+}
+
+.stub-block:hover,
+.stub-block:focus-visible {
+  border-style: solid;
+}
+
+.stub-mark {
+  font-size: 0.75rem;
+  font-style: normal;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.notes-strip {
+  margin: 1.5rem 0 2rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  border-top: var(--border-w) solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.notes-strip summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.notes-strip ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.notes-strip li {
+  margin: 0.25rem 0;
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.next-doc {
+  display: block;
+  margin: 1.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.combined-doc .next-doc {
+  display: none;
+}
+
+.combined-doc.active .next-doc {
+  display: block;
+  margin-top: 0.75rem;
+}
+
+.target-bar {
+  display: inline-block;
+  width: 5rem;
+  height: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.target-fill {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+}
+
+[data-theme='eink'] .target-bar {
+  border: 1px solid #000;
+}
+
+[data-theme='eink'] .target-fill {
+  background: #000;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.9rem 2rem;
+}
+
+.inspector-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.status-field {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.status-field legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+.status-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  min-height: 2rem;
+}
+
+.status-choice .status-symbol {
+  font-size: 1rem;
+}
+
+.topbar button.on {
+  color: var(--ink);
+  text-decoration: underline;
+}

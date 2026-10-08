@@ -7,6 +7,8 @@ export interface Settings {
   theme: Theme;
   typewriter: boolean;
   wordCount: boolean;
+  /** Rolled-up word counts in the library (kinds that show them). */
+  libraryCounts: boolean;
   timer: boolean;
   timerMinutes: number;
   sidebar: boolean | null; // null = default for screen size
@@ -17,6 +19,7 @@ const DEFAULTS: Settings = {
   theme: 'paper',
   typewriter: true,
   wordCount: true,
+  libraryCounts: true,
   timer: false,
   timerMinutes: 25,
   sidebar: null,

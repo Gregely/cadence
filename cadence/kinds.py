@@ -320,7 +320,7 @@ register(
             forward_only=True,
         ),
         statuses=("stub", "drafted", "revised", "done"),
-        status_symbols={"stub": "○", "drafted": "◔", "revised": "◑", "done": "●"},
+        status_symbols={"stub": "□", "drafted": "◧", "revised": "▣", "done": "■"},
         roles=(Role("scene", "Scene", manuscript=True), Role("misc", "Misc note", manuscript=False)),
         meta_fields=("synopsis", "pov", "story_date", "beats"),
         searchable=True,

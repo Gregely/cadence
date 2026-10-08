@@ -323,10 +323,10 @@
       "beats"
     ],
     "status_symbols": {
-      "stub": "○",
-      "drafted": "◔",
-      "revised": "◑",
-      "done": "●"
+      "stub": "□",
+      "drafted": "◧",
+      "revised": "▣",
+      "done": "■"
     },
     "default_role": "scene",
     "capture_allowed": true,
