@@ -96,3 +96,21 @@ def test_diary_never_in_search(api, diary):
     assert api.search("otter", all_kinds=True) == []
     assert api.search("diary", all_kinds=True) == []
     assert api.search("entry", all_kinds=True) == []
+
+
+def test_search_scoped_to_a_project_folder(api):
+    p1 = api.folder("fiction", "Novel One")
+    ch = api.folder("fiction", "Chapter", p1["id"])
+    p2 = api.folder("fiction", "Novel Two")
+    a = api.doc("fiction", "Deep scene", "lighthouse keeper", folder_id=ch["id"])
+    note = api.ok(api.c.post("/api/documents", json={"kind": "fiction", "title": "Keeper notes", "role": "misc", "folder_id": p1["id"], "plain_text": "the lighthouse keeper, age 60"}))
+    api.doc("fiction", "Other novel", "lighthouse", folder_id=p2["id"])
+    api.doc("fiction", "Loose", "lighthouse")
+    hits = api.ok(api.c.get("/api/search", params={"q": "lighthouse", "kind": "fiction", "folder_id": p1["id"]}))
+    assert {h["id"] for h in hits} == {a["id"], note["id"]}  # scenes and misc notes, this project only
+    by_id = {h["id"]: h for h in hits}
+    assert by_id[a["id"]]["folder_path"] == ["Novel One", "Chapter"] and by_id[note["id"]]["role"] == "misc"
+    assert len(api.search("lighthouse", kind="fiction")) == 4
+    api.ok(api.c.delete(f"/api/folders/{ch['id']}"))
+    hits = api.ok(api.c.get("/api/search", params={"q": "lighthouse", "kind": "fiction", "folder_id": p1["id"]}))
+    assert [h["id"] for h in hits] == [note["id"]]

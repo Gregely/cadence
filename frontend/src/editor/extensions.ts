@@ -13,6 +13,7 @@ import Typography from '@tiptap/extension-typography';
 import { Dropcursor, Gapcursor, UndoRedo } from '@tiptap/extensions';
 
 import type { KindDef } from '../types';
+import { ForwardOnly, TodoMarkers } from './manuscript';
 import { Citation, CurrentBlock, Footnote, Indent, PoetryLines, SectionBreak } from './nodes';
 
 const SAFE_HREF = /^(https?:|mailto:|#)/i;
@@ -67,6 +68,8 @@ export const EXTENSION_FACTORIES: Record<string, (arg?: string) => AnyExtension[
   orderedList: () => [OrderedList, ListItem, ListKeymap],
   poetryLines: () => [PoetryLines],
   indent: () => [Indent],
+  todoMarkers: () => [TodoMarkers],
+  forwardOnly: () => [ForwardOnly],
 };
 
 export function hasExtension(kind: KindDef, name: string): boolean {

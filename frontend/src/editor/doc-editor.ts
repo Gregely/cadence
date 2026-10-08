@@ -1,10 +1,11 @@
 import { Editor, type JSONContent } from '@tiptap/core';
-import { NodeSelection, Selection } from '@tiptap/pm/state';
+import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state';
 
 import { h } from '../lib/dom';
 import { countWords } from '../lib/text';
 import type { KindDef } from '../types';
 import { buildExtensions, hasExtension, headingLevels } from './extensions';
+import { findMarkers, forwardKey } from './manuscript';
 import { FOOTNOTE_EVENT, type FootnoteEventDetail, selectionAt } from './nodes';
 
 export interface DocEditorOptions {
@@ -97,7 +98,8 @@ export class DocEditor {
   setContent(content: JSONContent | null, cursor?: number | null): void {
     this.suppress++;
     try {
-      this.editor.commands.setContent(content ?? EMPTY, { emitUpdate: false });
+      // Replacing the whole content is allowed even in forward-only mode.
+      this.editor.chain().setMeta('forwardOnlyAllow', true).setContent(content ?? EMPTY, { emitUpdate: false }).run();
     } finally {
       this.suppress--;
     }
@@ -144,6 +146,32 @@ export class DocEditor {
     view.dispatch(state.tr.setSelection(sel).setMeta('addToHistory', false));
     view.focus();
     this.scrollToCursor(false);
+  }
+
+  /**
+   * Forward-only drafting (kinds with the forwardOnly extension). With
+   * atCursor the paragraph holding the cursor stays editable, otherwise
+   * only the last one.
+   */
+  setForwardOnly(on: boolean, atCursor = true): void {
+    if (!forwardKey.getState(this.editor.state)) return;
+    const { state, view } = this.editor;
+    view.dispatch(state.tr.setMeta(forwardKey, { on, atCursor }).setMeta('addToHistory', false));
+  }
+
+  forwardOnly(): boolean {
+    return forwardKey.getState(this.editor.state)?.on === true;
+  }
+
+  /** Select the n-th [[...]] marker (for "jump to TODO"). */
+  selectMarker(index: number): boolean {
+    const m = findMarkers(this.editor.state.doc)[index];
+    if (!m) return false;
+    const { state, view } = this.editor;
+    view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, m[0], m[1])).scrollIntoView());
+    view.focus();
+    this.scrollToCursor(false);
+    return true;
   }
 
   setEditable(on: boolean): void {

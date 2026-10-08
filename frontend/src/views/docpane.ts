@@ -133,6 +133,7 @@ export class DocPane {
       },
     });
     this.editor.editor.on('focus', () => this.host.onFocus?.(this));
+    if (this.host.app.forwardOnly) this.editor.setForwardOnly(true, false);
   }
 
   words(): number {

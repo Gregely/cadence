@@ -1994,3 +1994,198 @@ button.linkish:hover {
   font-family: system-ui, sans-serif;
   font-weight: 700;
 }
+
+.prose .todo-marker {
+  outline: 1px dashed var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85em;
+}
+
+[data-theme='eink'] .prose .todo-marker {
+  outline: 2px dashed #000;
+  font-weight: 700;
+}
+
+.prose .forward-locked {
+  color: var(--dim);
+}
+
+[data-theme='eink'] .prose .forward-locked {
+  color: #000;
+  text-decoration: underline dotted;
+  text-decoration-color: #999;
+}
+
+/* ------------------------------------------------------------ manuscript panes and screens */
+
+.side-pane.wide {
+  width: min(46rem, 48vw);
+}
+
+.side-list,
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 2rem;
+  min-height: 100%;
+}
+
+.side-list input[type='search'] {
+  width: 100%;
+  background: var(--raised);
+  border: var(--border-w) solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  min-height: 2.1rem;
+}
+
+.split-body {
+  padding: 0.5rem 0.25rem 40vh;
+}
+
+.split .pane-top strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.small {
+  font-size: 0.8rem;
+  min-height: 1.6rem;
+  padding: 0 0.4rem;
+}
+
+.beats summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.beats-list {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+}
+
+.beats-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.2rem 0;
+}
+
+.beats-list li input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.beats-list li.done input[type='text'] {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.beats > input {
+  width: 100%;
+}
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--bg);
+  outline: none;
+}
+
+.reader-window {
+  position: absolute;
+  top: 2.5rem;
+  bottom: 3.25rem;
+  left: 50%;
+  width: min(var(--k-measure, 36rem), calc(100vw - 2.5rem));
+  transform: translateX(-50%);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.reader-pages {
+  column-fill: auto;
+  min-height: 0;
+  white-space: normal;
+}
+
+.reader-pages .reader-title {
+  font-size: 1.6rem;
+  margin: 0 0 1.5rem;
+}
+
+.reader-pages .reader-heading {
+  break-before: column;
+  margin: 2rem 0 1rem;
+}
+
+.reader-pages .reader-break {
+  text-align: center;
+  margin: 1rem 0;
+  text-indent: 0 !important;
+}
+
+.reader-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  border-top: var(--border-w) solid var(--line);
+  background: var(--bg);
+}
+
+.timeline-day {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 1.75rem 0 0.5rem;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 0 0.5rem 0.9rem;
+}
+
+[data-theme='eink'] .timeline-item {
+  border-left: 3px solid #000;
+}
+
+.timeline-when {
+  flex: none;
+  width: 3.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.timeline-what {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+@media (max-width: 760px) {
+  .side-pane.wide {
+    width: auto;
+  }
+}

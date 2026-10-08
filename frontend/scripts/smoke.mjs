@@ -626,6 +626,168 @@ step('fiction: compile with TODO warning, draft sets compare and restore', async
   await phone.close();
 });
 
+step('fiction: TODOs, split view, project search, reading, timeline, forward-only, beats', async () => {
+  const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+  const para = (...t) => JSON.stringify({ type: 'doc', content: t.map((x) => ({ type: 'paragraph', content: [{ type: 'text', text: x }] })) });
+  const project = await post('/api/folders', { kind: 'fiction', name: 'Fen' });
+  const ch1 = await post('/api/folders', { kind: 'fiction', name: 'Chapter One', parent_id: project.id });
+  const ch2 = await post('/api/folders', { kind: 'fiction', name: 'Chapter Two', parent_id: project.id });
+  const long = 'The reeds bent under the wind and the water rose against the dyke. '.repeat(30);
+  const s1 = await post('/api/documents', { kind: 'fiction', title: 'Flood', folder_id: ch1.id, content_json: para('First paragraph of the flood.', 'Second paragraph, where the eel-catcher waits.') });
+  const s2 = await post('/api/documents', { kind: 'fiction', title: 'Reeds', folder_id: ch1.id, content_json: para(long, long, long), meta: { story_date: '1953-02-01' } });
+  const s3 = await post('/api/documents', { kind: 'fiction', title: 'After', folder_id: ch2.id, content_json: para('After the water, the eel-catcher counted boats.') });
+  const misc = await post('/api/documents', { kind: 'fiction', title: 'Eel-catcher', role: 'misc', folder_id: ch1.id, content_json: para('Old man, knows the tides.') });
+
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  guard(page, 'fiction-aids');
+  await page.goto(`${base}/f/${ch1.id}`);
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  // TODO marker typed into a scene: highlighted, listed, jumped to.
+  const flood = page.locator(`.combined-doc[data-doc="${s1.id}"] .ProseMirror`);
+  await flood.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' [[fix: give him a name]]');
+  await page.waitForSelector(`.combined-doc[data-doc="${s1.id}"] .todo-marker`);
+  for (let i = 0; i < 40 && !(await api(`/api/documents/${s1.id}`)).plain_text.includes('[[fix'); i++) await page.waitForTimeout(100);
+  await page.locator(`.combined-doc[data-doc="${s2.id}"] .ProseMirror`).click();
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("TODOs in this project")');
+  await page.waitForSelector('.todo-hit');
+  check((await page.locator('.todo-hit').innerText()).includes('Chapter One / Flood'), 'TODO list shows chapter and scene');
+  await page.click('.todo-hit');
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => window.getSelection().toString()) === '[[fix: give him a name]]', 'clicking a TODO selects it in its scene');
+  await page.screenshot({ path: join(out, 'fiction-todos.png') });
+
+  // Split view: the misc note beside the chapter; each saves to itself.
+  await page.locator('.notes-strip summary').click();
+  await page.click('.notes-strip button:has-text("Beside")');
+  await page.waitForSelector('.split .ProseMirror');
+  await page.locator('.split .ProseMirror').click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' Smokes a clay pipe.');
+  await flood.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' The water kept rising.');
+  for (let i = 0; i < 50; i++) {
+    const [m, f] = await Promise.all([api(`/api/documents/${misc.id}`), api(`/api/documents/${s1.id}`)]);
+    if (m.plain_text.endsWith('clay pipe.') && f.plain_text.endsWith('kept rising.')) break;
+    await page.waitForTimeout(100);
+  }
+  const [m, f] = await Promise.all([api(`/api/documents/${misc.id}`), api(`/api/documents/${s1.id}`)]);
+  check(m.plain_text.endsWith('Smokes a clay pipe.') && !m.plain_text.includes('rising'), 'the document beside saves to itself');
+  check(f.plain_text.endsWith('The water kept rising.') && !f.plain_text.includes('pipe'), 'the main text saves to itself');
+  await page.screenshot({ path: join(out, 'fiction-split.png') });
+  await page.click('.split button[aria-label="Close the document beside"]');
+
+  // Project search, this project by default.
+  await page.keyboard.press('Control+Shift+p');
+  await page.waitForSelector('.side-list input[type=search]');
+  await page.keyboard.type('eel');
+  await page.waitForSelector('.search-results .hit');
+  const hits = await page.locator('.search-results .hit').allInnerTexts();
+  check(hits.length === 3 && hits.every((t) => !t.includes('Saltmarsh')), `project search finds scenes and misc notes in this project (${hits.length})`);
+  check(hits.some((t) => t.includes('Chapter Two')), 'results show the chapter');
+  await page.locator('.search-results .hit', { hasText: 'After' }).click();
+  await page.waitForFunction((id) => document.activeElement?.closest('[data-doc]')?.getAttribute('data-doc') === String(id) || location.pathname === `/d/${id}`, s3.id);
+  check(true, 'a search result opens its scene');
+
+  // Timeline: offered once two scenes have dates.
+  await page.goto(`${base}/f/${ch1.id}`);
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  await flood.click();
+  await page.click('button[aria-label="Document menu"]');
+  check(!(await page.locator('.menu button:has-text("Timeline")').count()), 'no timeline with only one dated scene');
+  await page.keyboard.press('Escape');
+  await page.click('.topbar button:has-text("Details")');
+  await page.waitForSelector('.inspector [data-field="story_date"] input');
+  await page.fill('.inspector [data-field="story_date"] input', '1953-01-31T22:00');
+  await page.press('.inspector [data-field="story_date"] input', 'Enter');
+  // Beats: collapsed, stored with the scene, never compiled.
+  check(!(await page.locator('.inspector details.beats').evaluate((d) => d.open)), 'beats are collapsed by default');
+  await page.locator('.inspector details.beats summary').click();
+  for (const beat of ['Water over the dyke', 'He refuses to leave']) {
+    await page.fill('.inspector details.beats > input', beat);
+    await page.press('.inspector details.beats > input', 'Enter');
+  }
+  await page.locator('.beats-list li').first().locator('input[type=checkbox]').check();
+  await page.waitForTimeout(500);
+  const meta = (await api(`/api/documents/${s1.id}`)).meta;
+  check(JSON.stringify(meta.beats) === JSON.stringify([{ text: 'Water over the dyke', done: true }, { text: 'He refuses to leave', done: false }]), 'beats saved with their ticks');
+  const md = await (await fetch(`${base}/api/folders/${project.id}/compile?format=md`)).text();
+  check(!md.includes('Water over the dyke') && !md.includes('[['), 'beats and markers are never compiled');
+  await page.screenshot({ path: join(out, 'fiction-beats.png') });
+  await page.click('.inspector button[aria-label="Close details"]');
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Timeline")');
+  await page.waitForSelector('.timeline-item');
+  const items = await page.locator('.timeline-item .hit-title').allInnerTexts();
+  check(items.join(',').includes('Flood') && items.indexOf(items.find((t) => t.includes('Flood'))) < items.indexOf(items.find((t) => t.includes('Reeds'))), `timeline in story order (${items})`);
+  await page.screenshot({ path: join(out, 'fiction-timeline.png') });
+  await page.click('text=‹ Back to writing');
+
+  // Forward-only drafting: off by default; earlier paragraphs locked while on.
+  await flood.click();
+  await page.keyboard.press('Control+End');
+  await page.click('button[aria-label="Document menu"]');
+  check(!(await page.locator('.menu button:has-text("Forward-only drafting")').getAttribute('aria-checked')).includes('true'), 'forward-only is off by default');
+  await page.click('.menu button:has-text("Forward-only drafting")');
+  await page.waitForSelector(`.combined-doc[data-doc="${s1.id}"] .forward-locked`);
+  const before = (await api(`/api/documents/${s1.id}`)).plain_text;
+  await page.locator(`.combined-doc[data-doc="${s1.id}"] .forward-locked`).first().click();
+  await page.keyboard.type('XYZ');
+  await page.waitForTimeout(1200);
+  const firstPara = (await api(`/api/documents/${s1.id}`)).plain_text.split('\n\n')[0];
+  check(firstPara === 'First paragraph of the flood.', `earlier paragraphs cannot be edited in forward-only mode (${firstPara})`);
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Onwards.');
+  for (let i = 0; i < 40 && !(await api(`/api/documents/${s1.id}`)).plain_text.endsWith('Onwards.'); i++) await page.waitForTimeout(100);
+  check((await api(`/api/documents/${s1.id}`)).plain_text.endsWith('Onwards.') && before.length > 0, 'writing forward still works');
+  await page.screenshot({ path: join(out, 'fiction-forward-only.png') });
+  await page.click('button[aria-label="Document menu"]');
+  await page.click('.menu button:has-text("Forward-only drafting")');
+  check(!(await page.locator('.forward-locked').count()), 'forward-only can be switched off');
+  await page.reload();
+  await page.waitForSelector('.combined-doc .ProseMirror');
+  check(!(await page.locator('.forward-locked').count()), 'forward-only is not remembered after a reload');
+
+  // Reading mode: pages, no editing controls.
+  await page.locator(`.row.folder[data-folder="${ch1.id}"]`).hover();
+  await page.click(`.row.folder[data-folder="${ch1.id}"] .more`);
+  await page.click('.menu button:has-text("Read")');
+  await page.waitForSelector('.reader');
+  await page.waitForTimeout(300);
+  check(!(await page.locator('.reader [contenteditable]').count()), 'reading mode has no editing');
+  const count1 = await page.locator('.reader-count').innerText();
+  check(/^Page 1 of [2-9]/.test(count1), `reading mode is paginated (${count1})`);
+  await page.keyboard.press('ArrowRight');
+  check((await page.locator('.reader-count').innerText()).startsWith('Page 2'), 'arrow key turns the page');
+  check(!(await page.locator('.reader').innerText()).includes('[['), 'reading mode hides TODO markers');
+  await page.screenshot({ path: join(out, 'fiction-reading.png') });
+  await page.keyboard.press('Escape');
+  check(!(await page.locator('.reader').count()), 'Esc leaves reading mode');
+  await ctx.close();
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await phone.newPage();
+  guard(p2, 'reading-phone');
+  await p2.goto(`${base}/f/${ch1.id}?theme=eink`);
+  await p2.waitForSelector('.combined-doc .ProseMirror');
+  await p2.locator('.combined-doc .ProseMirror').first().tap();
+  await p2.tap('button[aria-label="Document menu"]');
+  await p2.tap('.menu button:has-text("Read “Chapter One”")');
+  await p2.waitForSelector('.reader');
+  await p2.waitForTimeout(300);
+  await p2.tap('.reader-window', { position: { x: 300, y: 300 } });
+  check((await p2.locator('.reader-count').innerText()).startsWith('Page 2'), 'tapping the right side turns the page on a phone');
+  const overflow = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(overflow <= 0, `reading mode fits the phone (${overflow}px)`);
+  await p2.screenshot({ path: join(out, 'phone-eink-reading.png') });
+  await phone.close();
+});
+
 step('research: clip, cite, footnote, search, reading notes, export', async () => {
   const essays = await api('/api/kinds/essay/tree');
   const essay = essays.documents.find((d) => d.title === 'On walking');

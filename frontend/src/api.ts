@@ -138,6 +138,6 @@ export const api = {
   restoreDraftSet: (id: number, documentId?: number) =>
     post<{ safety_set: DraftSet; restored: number[]; recreated: number[]; unchanged: number[] }>(`/api/draft-sets/${id}/restore`, documentId ? { document_id: documentId } : {}),
 
-  search: (query: string, kind: string | null, allKinds = false, limit = 30) =>
-    get<SearchHit[]>(`/api/search${q({ q: query, kind: allKinds ? undefined : kind, all_kinds: allKinds || undefined, limit })}`),
+  search: (query: string, kind: string | null, allKinds = false, limit = 30, folderId?: number | null) =>
+    get<SearchHit[]>(`/api/search${q({ q: query, kind: allKinds ? undefined : kind, all_kinds: allKinds || undefined, limit, folder_id: folderId })}`),
 };

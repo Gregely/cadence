@@ -62,6 +62,8 @@ export class App implements SidebarHost, ScreenHost {
   tree!: Tree;
   doc: DocFull | null = null;
   editor: DocEditor | null = null;
+  /** Forward-only drafting: on for this session only, never remembered. */
+  forwardOnly = false;
   /** The combined folder view, when a folder is open instead of one document. */
   view: CombinedView | null = null;
   readonly features: Feature[] = [];
@@ -606,6 +608,28 @@ export class App implements SidebarHost, ScreenHost {
     for (const p of this.panes) if (p.id === docId) p.rebase(updatedAt);
   }
 
+  /** Forward-only drafting for every open editor (kinds with the extension). */
+  setForwardOnly(on: boolean): void {
+    this.forwardOnly = on;
+    this.editor?.setForwardOnly(on, true);
+    const focused = this.view?.active;
+    for (const p of this.panes) p.editor?.setForwardOnly(on, p === focused);
+    toast(on ? 'Forward-only: earlier paragraphs are read-only until you switch this off.' : 'Forward-only is off.');
+  }
+
+  /** Go to a document and, optionally, select its n-th [[...]] marker. */
+  async jumpTo(docId: number, markerIndex?: number): Promise<void> {
+    this.closeScreen();
+    const pane = this.view?.panes.get(docId);
+    if (this.view && pane) {
+      await this.view.focusDoc(docId, 'start');
+      if (markerIndex !== undefined) pane.editor?.selectMarker(markerIndex);
+      return;
+    }
+    if (!(await this.openDocument(docId))) return;
+    if (markerIndex !== undefined) this.editor?.selectMarker(markerIndex);
+  }
+
   /** Save every open editor (before compiling or taking a draft set). */
   async flushAll(): Promise<void> {
     await this.saver.flush();
@@ -652,6 +676,7 @@ export class App implements SidebarHost, ScreenHost {
       onSelection: () => this.onSelection(),
       askLink: (current) => ask({ title: 'Link address', value: current, placeholder: 'https://', ok: 'Set link', hint: 'Leave empty to remove the link.' }),
     });
+    if (this.forwardOnly) this.editor.setForwardOnly(true, true);
     this.updateWords();
   }
 
@@ -1046,6 +1071,7 @@ export class App implements SidebarHost, ScreenHost {
 
   private showScreen(el: HTMLElement, path: string, push: boolean): void {
     void this.saver.flush();
+    for (const bar of document.querySelectorAll<HTMLElement>('.format-bar')) bar.hidden = true;
     clear(this.screenHolder);
     this.screenHolder.appendChild(el);
     this.screenHolder.hidden = false;
@@ -1068,9 +1094,16 @@ export class App implements SidebarHost, ScreenHost {
 
   back(): void {
     this.closeScreen();
-    if (this.doc) history.pushState(null, '', `/d/${this.doc.id}`);
+    if (this.view) history.pushState(null, '', `/f/${this.view.folder.id}`);
+    else if (this.doc) history.pushState(null, '', `/d/${this.doc.id}`);
     else history.pushState(null, '', '/');
-    this.editor?.focus();
+    if (this.view) this.view.active?.editor?.focus();
+    else this.editor?.focus();
+  }
+
+  /** Show a screen (timeline, ...) in place of the writing area. */
+  openScreen(el: HTMLElement): void {
+    this.showScreen(el, window.location.pathname, false);
   }
 
   openInbox(push = true): void {
@@ -1315,6 +1348,9 @@ export class App implements SidebarHost, ScreenHost {
       ['Ctrl+Shift+E', 'Research pane (essays)'],
       ['Ctrl+Shift+D', 'Draft mode: only the text (fiction)'],
       ['Ctrl+Shift+Enter', 'Next scene, right below this one (fiction)'],
+      ['Ctrl+Shift+P', 'Search this project (fiction)'],
+      ['[[ … ]]', 'A TODO marker in the text (fiction; left out of compile)'],
+      ['Reading: ← → / Space', 'Turn the page; Esc closes'],
       ['Library: ↑ ↓ ← →', 'Move between items'],
       ['Library: Alt+Shift+↑ ↓', 'Move item up or down'],
       ['Library: Alt+Shift+→ ←', 'Indent or outdent'],
